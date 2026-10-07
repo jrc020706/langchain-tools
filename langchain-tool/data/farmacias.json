@@ -1,0 +1,82 @@
+[
+  {
+    "nombre": "Farmacia Central Sol",
+    "direccion": "Calle Mayor 12, Madrid Centro",
+    "ciudad": "Madrid",
+    "telefono": "910 123 456",
+    "horario": "L-V 9:00-21:00, S 9:00-14:00",
+    "guardia": false
+  },
+  {
+    "nombre": "Farmacia de Guardia Atocha",
+    "direccion": "Paseo de las Delicias 45, Madrid",
+    "ciudad": "Madrid",
+    "telefono": "914 234 567",
+    "horario": "24 horas",
+    "guardia": true
+  },
+  {
+    "nombre": "Farmacia Sagrada Familia",
+    "direccion": "Calle Mallorca 418, Barcelona",
+    "ciudad": "Barcelona",
+    "telefono": "932 345 678",
+    "horario": "L-V 9:00-20:30, S 9:00-13:30",
+    "guardia": false
+  },
+  {
+    "nombre": "Farmacia de Guardia Diagonal",
+    "direccion": "Avinguda Diagonal 520, Barcelona",
+    "ciudad": "Barcelona",
+    "telefono": "934 456 789",
+    "horario": "24 horas",
+    "guardia": true
+  },
+  {
+    "nombre": "Farmacia Plaza Nueva",
+    "direccion": "Plaza Nueva 8, Sevilla",
+    "ciudad": "Sevilla",
+    "telefono": "954 567 890",
+    "horario": "L-V 9:00-21:00",
+    "guardia": false
+  },
+  {
+    "nombre": "Farmacia de Guardia Nervión",
+    "direccion": "Av. de la Constitución 32, Sevilla",
+    "ciudad": "Sevilla",
+    "telefono": "955 678 901",
+    "horario": "24 horas",
+    "guardia": true
+  },
+  {
+    "nombre": "Farmacia Mercado Colón",
+    "direccion": "Calle Conde Salvatierra 20, Valencia",
+    "ciudad": "Valencia",
+    "telefono": "963 789 012",
+    "horario": "L-V 9:00-20:00, S 9:00-14:00",
+    "guardia": false
+  },
+  {
+    "nombre": "Farmacia de Guardia Ruzafa",
+    "direccion": "Calle Sueca 55, Valencia",
+    "ciudad": "Valencia",
+    "telefono": "963 890 123",
+    "horario": "24 horas",
+    "guardia": true
+  },
+  {
+    "nombre": "Farmacia Casco Viejo",
+    "direccion": "Calle Correo 15, Bilbao",
+    "ciudad": "Bilbao",
+    "telefono": "944 901 234",
+    "horario": "L-V 9:00-20:00",
+    "guardia": false
+  },
+  {
+    "nombre": "Farmacia Alameda",
+    "direccion": "Alameda Recalde 30, Bilbao",
+    "ciudad": "Bilbao",
+    "telefono": "944 012 345",
+    "horario": "L-S 9:00-22:00",
+    "guardia": true
+  }
+]

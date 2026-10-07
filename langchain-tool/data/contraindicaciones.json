@@ -1,0 +1,110 @@
+[
+  {
+    "condicion": "embarazo",
+    "palabras_clave": ["embarazo", "embarazada", "gestación", "gestacion", "encinta"],
+    "descripcion": "En el embarazo muchos fármacos están restringidos, sobre todo en el primer y tercer trimestre",
+    "evitar": ["ibuprofeno", "diclofenaco", "ácido acetilsalicílico", "enalapril", "losartán", "atorvastatina", "warfarina", "diazepam"],
+    "precaucion": ["omeprazol", "loperamida", "melatonina", "amoxicilina"],
+    "seguros_habituales": ["paracetamol", "loratadina", "cetirizina"],
+    "nota": "El paracetamol es el analgésico de elección. Los AINE están contraindicados en el 3er trimestre. IECA/ARA2, estatinas y warfarina están prohibidos. Ante cualquier duda, consultar al médico o farmacéutico"
+  },
+  {
+    "condicion": "lactancia",
+    "palabras_clave": ["lactancia", "amamantando", "dando el pecho", "lactando"],
+    "descripcion": "Durante la lactancia pasan pequeñas cantidades del fármaco a la leche",
+    "evitar": ["ácido acetilsalicílico", "enalapril", "losartán", "atorvastatina", "warfarina"],
+    "precaucion": ["ibuprofeno", "diazepam", "loperamida", "melatonina"],
+    "seguros_habituales": ["paracetamol", "loratadina", "cetirizina", "omeprazol", "amoxicilina"],
+    "nota": "Ibuprofeno a dosis bajas y corto plazo suele aceptarse. Evitar aspirina y sedantes. Tomar la dosis justo después de la toma del bebé reduce la exposición"
+  },
+  {
+    "condicion": "menores de 12 años",
+    "palabras_clave": ["niño", "niña", "niños", "hijo", "hija", "bebé", "bebe", "infantil", "pediátrico", "pediatrico", "menor"],
+    "descripcion": "En niños las dosis van por peso y algunos fármacos están prohibidos por edad",
+    "evitar": ["ácido acetilsalicílico", "diclofenaco", "doxilamina"],
+    "precaucion": ["ibuprofeno", "loratadina", "cetirizina", "omeprazol", "loperamida", "dextrometorfano"],
+    "seguros_habituales": ["paracetamol", "suero fisiológico nasal", "sales de rehidratación oral"],
+    "nota": "Prohibida la aspirina en < 16 años (síndrome de Reye). Ibuprofeno solo a partir de 3-6 meses según presentación. En < 2 años casi todo requiere valoración pediátrica"
+  },
+  {
+    "condicion": "hipertensión arterial",
+    "palabras_clave": ["hipertensión", "hipertension", "tensión alta", "tension alta", "presión alta", "presion alta"],
+    "descripcion": "Algunos fármacos suben la tensión o interfieren con los antihipertensivos",
+    "evitar": ["ibuprofeno", "diclofenaco", "naproxeno", "pseudoefedrina"],
+    "precaucion": ["ácido acetilsalicílico", "dextrometorfano"],
+    "seguros_habituales": ["paracetamol", "loratadina", "omeprazol"],
+    "nota": "Los AINE pueden subir la tensión y reducir el efecto de IECA/ARA2/diuréticos. Preferir paracetamol. Cuidado con antigripales con pseudoefedrina"
+  },
+  {
+    "condicion": "úlcera o gastritis",
+    "palabras_clave": ["úlcera", "ulcera", "gastritis", "estómago delicado", "estomago delicado", "ardor de estómago"],
+    "descripcion": "Los AINE dañan la mucosa gástrica y pueden reactivar úlceras",
+    "evitar": ["ibuprofeno", "diclofenaco", "ácido acetilsalicílico", "naproxeno"],
+    "precaucion": ["sertralina", "corticoides"],
+    "seguros_habituales": ["paracetamol", "omeprazol", "antiácidos"],
+    "nota": "Preferir paracetamol. Si el AINE es imprescindible, asociar protector gástrico (omeprazol) y tomar con comida, bajo supervisión médica"
+  },
+  {
+    "condicion": "insuficiencia renal",
+    "palabras_clave": ["riñón", "rinon", "renal", "insuficiencia renal", "diálisis", "dialisis", "creatinina"],
+    "descripcion": "Muchos fármacos se eliminan por el riñón y los AINE pueden dañarlo",
+    "evitar": ["ibuprofeno", "diclofenaco", "ácido acetilsalicílico"],
+    "precaucion": ["metformina", "enalapril", "losartán", "amoxicilina", "paracetamol"],
+    "seguros_habituales": [],
+    "nota": "Evitar AINE. Casi todos los fármacos requieren ajuste de dosis según filtrado glomerular: imprescindible supervisión médica"
+  },
+  {
+    "condicion": "insuficiencia hepática",
+    "palabras_clave": ["hígado", "higado", "hepático", "hepatico", "hepatitis", "cirrosis"],
+    "descripcion": "El hígado metaboliza la mayoría de fármacos; el paracetamol es especialmente hepatotóxico en sobredosis",
+    "evitar": ["paracetamol", "atorvastatina", "diclofenaco"],
+    "precaucion": ["ibuprofeno", "amoxicilina", "omeprazol", "diazepam", "sertralina"],
+    "seguros_habituales": [],
+    "nota": "Reducir dosis de paracetamol (máx. 2 g/día) o evitarlo. Todo tratamiento crónico requiere control médico y analítico"
+  },
+  {
+    "condicion": "asma",
+    "palabras_clave": ["asma", "asmático", "asmatico", "broncoespasmo", "silbidos al respirar"],
+    "descripcion": "Aspirina y AINE pueden desencadenar crisis en asmáticos sensibles",
+    "evitar": ["ácido acetilsalicílico", "ibuprofeno", "diclofenaco"],
+    "precaucion": ["propranolol", "dextrometorfano"],
+    "seguros_habituales": ["paracetamol", "salbutamol", "loratadina"],
+    "nota": "El paracetamol es el analgésico más seguro en asma. Los asmáticos sensibles a AINE deben evitarlos por completo"
+  },
+  {
+    "condicion": "diabetes",
+    "palabras_clave": ["diabetes", "diabético", "diabetico", "azúcar alta", "azucar alta", "glucosa"],
+    "descripcion": "Corticoides y algunos fármacos alteran la glucemia; cuidado con azúcares en jarabes",
+    "evitar": ["corticoides sistémicos sin control", "jarabes con azúcar"],
+    "precaucion": ["ibuprofeno", "salbutamol", "sertralina"],
+    "seguros_habituales": ["paracetamol", "metformina", "loratadina"],
+    "nota": "Vigilar glucemia si se usan corticoides o salbutamol frecuente. Preferir presentaciones sin azúcar"
+  },
+  {
+    "condicion": "anticoagulación",
+    "palabras_clave": ["anticoagulante", "sintrom", "warfarina", "tomo anticoagulante", "heparina", "adalimumab"],
+    "descripcion": "Con anticoagulantes cualquier fármaco que aumente el sangrado es peligroso",
+    "evitar": ["ibuprofeno", "diclofenaco", "ácido acetilsalicílico", "naproxeno"],
+    "precaucion": ["paracetamol", "amoxicilina", "omeprazol", "sertralina"],
+    "seguros_habituales": [],
+    "nota": "Prohibidos AINE y aspirina sin supervisión. Paracetamol a dosis bajas es lo más seguro. Avisar al médico antes de cualquier fármaco nuevo y controlar INR"
+  },
+  {
+    "condicion": "glaucoma",
+    "palabras_clave": ["glaucoma", "tensión ocular", "tension ocular"],
+    "descripcion": "Anticolinérgicos y descongestionantes pueden elevar la presión intraocular",
+    "evitar": ["pseudoefedrina", "anticatarrales con anticolinérgicos", "dimenhidrinato"],
+    "precaucion": ["loratadina", "cetirizina"],
+    "seguros_habituales": ["paracetamol"],
+    "nota": "Evitar descongestionantes nasales y anticatarrales con pseudoefedrina o antihistamínicos de primera generación"
+  },
+  {
+    "condicion": "personas mayores",
+    "palabras_clave": ["mayor", "anciano", "abuelo", "abuela", "tercera edad", "65 años", "80 años"],
+    "descripcion": "En > 65 años hay más sensibilidad a sedantes, AINE y riesgo de caídas",
+    "evitar": ["diazepam", "doxilamina", "diclofenaco"],
+    "precaucion": ["ibuprofeno", "omeprazol", "sertralina", "loperamida"],
+    "seguros_habituales": ["paracetamol"],
+    "nota": "Preferir paracetamol. Evitar benzodiazepinas y sedantes (caídas, confusión). AINE solo corto plazo con protector gástrico"
+  }
+]
