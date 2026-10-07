@@ -36,24 +36,26 @@ for tool in TOOLS:
 # Endpoints personalizados usando @mcp.custom_route
 # -----------------------------------------------------------
 
-# Endpoint: chat principal - ejecuta el agente LangChain
+# Endpoint: chat principal - ejecuta el agente LangChain (bilingüe EN/ES)
 @mcp.custom_route(methods=["POST"], path="/chat")
 async def chat_endpoint(request: Request):
     body = await request.json()
     user_input = body.get("input", "")
     session_id = body.get("session_id", "default_mcp_session")
-    
-    history = get_session_history(session_id)
-    result = executor.invoke({
-        "input": user_input,
-        "chat_history": history.messages,
-    })
-    respuesta = result.get("output", "")
-    
-    history.add_user_message(user_input)
-    history.add_ai_message(respuesta)
-    
-    return JSONResponse({"output": respuesta, "session_id": session_id})
+    language = body.get("language")  # "es" | "en" | None (auto)
+
+    historia = get_session_history(session_id)
+    # run_agent autodetecta el idioma y añade el disclaimer correcto
+    from agent import run_agent as _run
+    respuesta = _run(user_input, session_id, language=language)
+
+    try:
+        from domain.i18n import detect_language as _det
+        lang = language if language in ("es", "en") else _det(user_input)
+    except Exception:
+        lang = language if language in ("es", "en") else "es"
+
+    return JSONResponse({"output": respuesta, "session_id": session_id, "language": lang})
 
 # Endpoint: obtener historial
 @mcp.custom_route(methods=["GET"], path="/history")
@@ -88,10 +90,12 @@ async def tools_endpoint(request: Request):
 @mcp.custom_route(methods=["GET"], path="/")
 async def root_endpoint(request: Request):
     return JSONResponse({
-        "mensaje": "Servidor FastMCP: Orientador de Medicamentos activo",
+        "mensaje": "Servidor FastMCP: Orientador de Medicamentos / Medication Guide activo",
+        "message": "FastMCP Server: Medication Guide active",
+        "languages": ["es", "en"],
         "documentacion": "/docs",
         "tools_endpoint": "/tools",
-        "chat_endpoint": "/chat"
+        "chat_endpoint": "/chat (POST {input, session_id, language?: 'es'|'en'})"
     })
 
 # -----------------------------------------------------------

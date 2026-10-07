@@ -87,51 +87,58 @@ class GeminiLlmAdapter(LlmPort):
     
     def get_supported_capabilities(self) -> List[str]:
         """Get list of capabilities supported by this LLM."""
-        return ["tool_calling", "function_calling", "natural_language", "spanish"]
+        return ["tool_calling", "function_calling", "natural_language", "spanish", "english", "bilingual"]
 
 
 class FakeGeminiAdapter:
     """Simulated Gemini adapter for demo mode without API key.
-    
-    Provides a fake LLM that returns realistic tool_calls
-    so the AgentExecutor works in demo mode.
+
+    `bind_tools` returns agent.py's `_FakeToolBinding` with full bilingual
+    routing, so the hexagonal ChatUseCase ReAct loop executes real tools
+    even without a Google API key.
     """
-    
+
     def __init__(self, model_name: str = "gemini-2.5-flash", temperature: float = 0.3):
         self._model_name = model_name
         self._temperature = temperature
-    
+
     def bind_tools(self, tools: List[Any]) -> Any:
-        """Bind tools to the fake LLM - returns self for chaining."""
-        return self
-    
+        """Return a routing fake bound to `tools` (like the real LLM would)."""
+        try:
+            from agent import _FakeToolBinding
+            return _FakeToolBinding(tools)
+        except Exception:
+            return self
+
     def invoke(self, inputs: Dict[str, Any]) -> Any:
-        """Invoke the fake LLM and return a fake AIMessage with tool_calls.
-        
-        This mimics what a real LLM would return so the AgentExecutor
-        can continue its normal flow in demo mode.
-        """
+        """Direct fallback (bilingual generic) when called without bind_tools."""
         from langchain_core.messages import AIMessage
-        import re
-        
-        # Extract the user's question
+
         user_input = inputs.get("input", "") if isinstance(inputs, dict) else str(inputs)
-        q = user_input.lower().strip()
-        
-        # Check for math expression
-        if re.fullmatch(r"[\d\s+\-*/().%×÷,]+", q) and re.search(r"\d", q):
-            return AIMessage(content="", tool_calls=[{
-                "name": "calcular", "args": {"expresion": q}, "id": "fake-calcular", "type": "tool_call",
-            }])
-        
-        # Simple simulated response
+        try:
+            from domain.i18n import detect_language as _det
+            lang = _det(user_input)
+        except Exception:
+            lang = "es"
+
+        if lang == "en":
+            return AIMessage(content=(
+                "I'm a medication guidance assistant (demo mode, no API key). "
+                "I can: analyze symptoms, give medicine cards, calculate weight-based doses, "
+                "check interactions and contraindications, assess urgency and find pharmacies. "
+                "Try for example: 'I have fever and sore throat', "
+                "'what is ibuprofen', 'paracetamol dose for 22 kg' or "
+                "'can I take ibuprofen with warfarin'.\n"
+                "⚠️ General guidance, does not replace your doctor or pharmacist."
+            ))
         return AIMessage(content=(
             "Soy un orientador de medicamentos (modo demo sin API key). "
             "Puedo: analizar síntomas, dar fichas de medicamentos, calcular dosis por peso, "
             "revisar interacciones y contraindicaciones, evaluar urgencia y buscar farmacias. "
             "Prueba por ejemplo: 'tengo fiebre y dolor de garganta', "
             "'qué es el ibuprofeno', 'dosis de paracetamol para 22 kg' o "
-            "'puedo tomar ibuprofeno con warfarina'.⚠️ Orientación general, no sustituye al médico o farmacéutico."
+            "'puedo tomar ibuprofeno con warfarina'.\n"
+            "⚠️ Orientación general, no sustituye al médico o farmacéutico."
         ))
     
     def get_model_name(self) -> str:

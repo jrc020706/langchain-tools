@@ -33,29 +33,20 @@ class ToolAdapter(ToolPort):
             self._convert_to_structured(tool) for tool in ORIGINAL_TOOLS
         ]
     
-    def _convert_to_structured(self, tool: Any) -> StructuredTool:
-        """Convert a LangChain @tool decorated function to StructuredTool.
-        
-        Args:
-            tool: A function decorated with @tool from tools.py
-            
-        Returns:
-            StructuredTool instance with name, description, and args_schema
+    def _convert_to_structured(self, candidate: Any) -> StructuredTool:
+        """Return the LangChain StructuredTool as-is.
+
+        TOOLS from tools.py are already StructuredTool instances
+        (created by the @tool decorator), so no conversion is needed.
         """
-        from langchain_core.tools import tool
-        
-        # If it's already a StructuredTool, return as-is
-        if hasattr(tool, 'name') and hasattr(tool, 'description'):
-            return tool
-        
-        # Otherwise, try to get the decoratd function
-        func = getattr(tool, 'func', tool)
-        
-        # Create a new @tool decorated function
-        # LangChain's @tool decorator creates a StructuredTool
-        decorated = tool(func)
-        
-        return decorated
+        # Already a StructuredTool -> return as-is
+        if hasattr(candidate, 'name') and hasattr(candidate, 'description'):
+            return candidate
+
+        # Fallback: plain function -> decorate it
+        from langchain_core.tools import tool as tool_decorator
+        func = getattr(candidate, 'func', candidate)
+        return tool_decorator(func)
     
     def get_tools(self) -> List[StructuredTool]:
         """Get the list of available tools.

@@ -44,6 +44,8 @@ def main():
     """Punto de entrada de la demo terminal."""
     print("=" * 70)
     print("💊 Agente de orientación de medicamentos (Arquitectura Hexagonal)")
+    print("💊 Medication guidance agent (Hexagonal Architecture)")
+    print("🌐 Bilingüe / Bilingual: Español + English (auto-detect)")
     print("=" * 70)
     print()
     
@@ -58,13 +60,23 @@ def main():
     
     session_id = "user_001"
     preguntas = [
+        # Español
         "Tengo fiebre y dolor de garganta, ¿qué puede ser?",
         "¿Qué dosis de paracetamol le doy a un niño de 22 kg?",
         "¿Puedo tomar ibuprofeno si tomo warfarina?",
+        # English
+        "I have fever and sore throat, what could it be?",
+        "What paracetamol dose should I give a 22 kg child?",
+        "Can I take ibuprofen if I take warfarin?",
     ]
-    
+
     for i, pregunta in enumerate(preguntas, 1):
-        print(f"🔵 TURNO {i}")
+        try:
+            from domain.i18n import detect_language as _det
+            lang = _det(pregunta)
+        except Exception:
+            lang = "es"
+        print(f"🔵 TURNO {i} [{lang}]")
         print("-" * 70)
         print(f"👤 Usuario: {pregunta}")
         
@@ -72,7 +84,7 @@ def main():
         result = chat_use_case.execute(pregunta, session_id)
         
         print(f"🤖 Agente: {result['output']}")
-        print(f"   (Sesión: {result['session_id']}, Mensajes: {result['message_count']})")
+        print(f"   (Sesión: {result['session_id']}, Idioma/Language: {result.get('language', '?')}, Mensajes: {result['message_count']})")
         print()
     
     # Mostrar historial - los mensajes vienen como dicts con 'content'

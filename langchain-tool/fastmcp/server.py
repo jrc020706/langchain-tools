@@ -5,9 +5,12 @@ to the domain layer (use cases) through ports and adapters.
 """
 
 from fastmcp import FastMCP
-from fastmcp.server.http import custom_route
 from starlette.responses import JSONResponse
 from starlette.requests import Request
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Import domain use cases (business logic)
 from domain.use_cases.chat_use_case import ChatUseCase
@@ -60,29 +63,31 @@ for tool in ORIGINAL_TOOLS:
 # Endpoint: chat principal - ejecuta el caso de uso
 @mcp.custom_route(methods=["POST"], path="/chat")
 async def chat_endpoint(request: Request):
-    """POST /chat - Ejecuta el agente de orientación de medicamentos.
-    
+    """POST /chat - Ejecuta el agente de orientación de medicamentos (bilingüe EN/ES).
+
     Cuerpo JSON esperado:
     {
-        "input": "mensaje del usuario",
-        "session_id": "id_opcional"
+        "input": "mensaje del usuario / user message",
+        "session_id": "id_opcional",
+        "language": "es|en|auto (opcional)"
     }
-    
-    Retorna la respuesta del agente con metadatos.
+
+    Retorna la respuesta del agente con metadatos (incluye `language`).
     """
     try:
         body = await request.json()
         user_input = body.get("input", "")
         session_id = body.get("session_id", "default_mcp_session")
-        
-        # Ejecutar el caso de uso (business logic)
-        result = _chat_use_case.execute(user_input, session_id)
-        
+        language = body.get("language")  # None = auto-detect
+
+        # Ejecutar el caso de uso (business logic, bilingüe)
+        result = _chat_use_case.execute(user_input, session_id, language=language)
+
         return JSONResponse(result)
-        
+
     except Exception as e:
         return JSONResponse(
-            {"error": str(e), "output": "Lo siento, hubo un error procesando tu mensaje.",
+            {"error": str(e), "output": "Lo siento, hubo un error procesando tu mensaje. / Sorry, there was an error processing your message.",
              "session_id": session_id if 'session_id' in dir() else "default"},
             status_code=500
         )
@@ -129,11 +134,14 @@ async def tools_endpoint(request: Request):
 # Endpoint: estado raíz
 @mcp.custom_route(methods=["GET"], path="/")
 async def root_endpoint(request: Request):
-    """GET / - Estado del servidor."""
+    """GET / - Estado del servidor (bilingüe)."""
     return JSONResponse({
-        "mensaje": "Servidor FastMCP: Orientador de Medicamentos (Arquitectura Hexagonal)",
-        "version": "2.0.0",
+        "mensaje": "Servidor FastMCP: Orientador de Medicamentos / Medication Guide (Arquitectura Hexagonal)",
+        "message": "FastMCP Server: Medication Guide / Orientador de Medicamentos (Hexagonal Architecture)",
+        "version": "2.1.0",
         "arquitectura": "hexagonal (puertos y adaptadores)",
+        "languages": ["es", "en"],
+        "language_mode": "auto-detect per message (override with POST /chat {\"language\": \"es\"|\"en\"})",
         "endpoints": {
             "chat": "POST /chat",
             "history": "GET /history?session_id=x",
@@ -158,7 +166,9 @@ if __name__ == "__main__":
     
     print(f"\nModo LLM: {'Gemini real' if 'Fake' not in type(_llm_adapter).__name__ else 'simulado (modo demo)'}")
     print(f"Modelo: {_llm_adapter.get_model_name()}")
-    print(f"Tools registradas: {_tool_adapter.get_tool_descriptions()[0]['nombre']} y {7} más")
+    _descs = _tool_adapter.get_tool_descriptions()
+    _first = _descs[0].get('nombre') or _descs[0].get('name', '?') if _descs else '?'
+    print(f"Tools registradas: {_first} y {len(_descs)-1} más" if _descs else "Tools: 0")
     print()
     
     print("Endpoints disponibles:")
