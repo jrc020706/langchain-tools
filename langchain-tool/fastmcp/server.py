@@ -74,11 +74,18 @@ async def chat_endpoint(request: Request):
 
     Retorna la respuesta del agente con metadatos (incluye `language`).
     """
+    session_id = "default_mcp_session"
     try:
         body = await request.json()
         user_input = body.get("input", "")
         session_id = body.get("session_id", "default_mcp_session")
+        if not isinstance(user_input, str) or not user_input.strip():
+            return JSONResponse({"error": "El campo 'input' debe ser texto no vacío."}, status_code=400)
+        if not isinstance(session_id, str) or not session_id.strip():
+            return JSONResponse({"error": "El campo 'session_id' debe ser texto no vacío."}, status_code=400)
         language = body.get("language")  # None = auto-detect
+        if language not in (None, "auto", "es", "en"):
+            return JSONResponse({"error": "'language' debe ser 'es', 'en' o 'auto'."}, status_code=400)
 
         # Ejecutar el caso de uso (business logic, bilingüe)
         result = _chat_use_case.execute(user_input, session_id, language=language)
@@ -88,7 +95,7 @@ async def chat_endpoint(request: Request):
     except Exception as e:
         return JSONResponse(
             {"error": str(e), "output": "Lo siento, hubo un error procesando tu mensaje. / Sorry, there was an error processing your message.",
-             "session_id": session_id if 'session_id' in dir() else "default"},
+             "session_id": session_id},
             status_code=500
         )
 
@@ -157,7 +164,7 @@ async def root_endpoint(request: Request):
 # Punto de entrada
 # -----------------------------------------------------------
 
-if __name__ == "__main__":
+def run_server() -> None:
     import uvicorn
     
     print("=" * 70)
@@ -183,5 +190,7 @@ if __name__ == "__main__":
     
     # Run the server
     uvicorn.run(mcp.http_app, host="127.0.0.1", port=8000)
-    
-    print("\nServidor MCP detenido.")
+
+
+if __name__ == "__main__":
+    run_server()

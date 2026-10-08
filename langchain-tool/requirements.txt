@@ -5,3 +5,5 @@ langchain-community>=0.0.12
 python-dotenv>=1.0.1
 gradio>=5.0.0
 numexpr>=2.10.0
+fastmcp>=2.0.0
+uvicorn>=0.30.0

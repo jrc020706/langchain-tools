@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Dict
 from ports.memory_port import MemoryPort
-from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage
+from domain.session_history import SessionHistory
 
 
 class InMemoryMemoryAdapter(MemoryPort):
@@ -25,9 +25,9 @@ class InMemoryMemoryAdapter(MemoryPort):
     
     def __init__(self):
         """Initialize the in-memory adapter with a session dict."""
-        self._session_history: Dict[str, InMemoryChatMessageHistory] = {}
+        self._session_history: Dict[str, SessionHistory] = {}
     
-    def get_session_history(self, session_id: str) -> InMemoryChatMessageHistory:
+    def get_session_history(self, session_id: str) -> SessionHistory:
         """Get or create session history for the given session.
         
         Args:
@@ -37,7 +37,7 @@ class InMemoryMemoryAdapter(MemoryPort):
             InMemoryChatMessageHistory for this session
         """
         if session_id not in self._session_history:
-            self._session_history[session_id] = InMemoryChatMessageHistory()
+            self._session_history[session_id] = SessionHistory()
         return self._session_history[session_id]
     
     def add_user_message(self, message: str, session_id: str) -> None:

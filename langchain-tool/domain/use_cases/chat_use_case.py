@@ -158,6 +158,10 @@ class ChatUseCase:
             "message_count": self._memory_port.get_message_count(session_id),
         }
 
+    def clear_session(self, session_id: str) -> None:
+        """Clear the conversation for one session."""
+        self._memory_port.clear_session(session_id)
+
     def get_history(self, session_id: str) -> Dict[str, Any]:
         """Get conversation history for a session."""
         history = self._memory_port.get_session_history(session_id)

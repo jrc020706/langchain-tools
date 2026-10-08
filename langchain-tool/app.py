@@ -47,7 +47,7 @@ def crear_caso_uso() -> ChatUseCase:
 _chat_use_case: ChatUseCase = crear_caso_uso()
 
 
-def responder(mensaje: str, historial: list) -> str:
+def responder(mensaje: str, historial: list, request: gr.Request) -> str:
     """Convierte el historial de Grado a messages LangChain y ejecuta el caso de uso.
 
     Bilingüe EN/ES: detecta el idioma del mensaje y responde en ese idioma.
@@ -64,9 +64,14 @@ def responder(mensaje: str, historial: list) -> str:
     Returns:
         Respuesta del agente como string / Agent answer as string
     """
-    # Usar el caso de uso hexagonal en lugar de executor directo
-    # ChatUseCase autodetecta el idioma (ES/EN) si no se fuerza
-    result = _chat_use_case.execute(mensaje)
+    # Gradio supplies a per-browser session hash. Clearing the UI also clears
+    # the corresponding in-memory conversation before the next turn.
+    session_id = request.session_hash if request and request.session_hash else "web-default"
+    if not historial:
+        _chat_use_case.clear_session(session_id)
+
+    # ChatUseCase autodetecta el idioma (ES/EN) si no se fuerza.
+    result = _chat_use_case.execute(mensaje, session_id=session_id)
 
     # Extraer la respuesta y formatear para Gradio
     respuesta = result.get("output", "No he podido generar una respuesta. Inténtalo de nuevo. / I couldn't generate an answer. Please try again.")

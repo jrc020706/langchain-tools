@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.base import Runnable
-from langchain_core.chat_history import InMemoryChatMessageHistory
+from domain.session_history import SessionHistory
 try:
     from langchain.agents import AgentExecutor, create_tool_calling_agent
 except ImportError:  # LangChain >= 1.0: agentes en langchain-classic
@@ -323,12 +323,12 @@ executor = AgentExecutor(
 # ---------------------------------------------------------------------------
 # Memoria por sesión
 # ---------------------------------------------------------------------------
-_session_history: dict[str, InMemoryChatMessageHistory] = {}
+_session_history: dict[str, SessionHistory] = {}
 
 
-def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
+def get_session_history(session_id: str) -> SessionHistory:
     if session_id not in _session_history:
-        _session_history[session_id] = InMemoryChatMessageHistory()
+        _session_history[session_id] = SessionHistory()
     return _session_history[session_id]
 
 

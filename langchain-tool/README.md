@@ -11,7 +11,9 @@ langchain-tool/
 ├── agent.py        # Agente: Gemini + AgentExecutor + memoria por sesión
 ├── tools.py        # Las 8 tools (leen de data/*.json)
 ├── app.py          # Interfaz web con Gradio (http://localhost:7860)
-├── main.py         # Demo por terminal
+├── main.py         # Chat interactivo por terminal
+├── fastmcp/server.py # Servidor HTTP FastMCP
+├── mcp_server.py   # Alias de compatibilidad para iniciar FastMCP
 ├── data/
 │   ├── medicamentos.json       # 18 fármacos comunes en España
 │   ├── sintomas.json           # 24 grupos de síntomas
@@ -36,9 +38,33 @@ Sin API key funciona igual en **modo simulado** (demo).
 ## Uso
 
 ```bash
-python main.py   # demo por terminal (3 turnos con memoria)
+python main.py   # chat interactivo por terminal
 python app.py    # interfaz web en http://localhost:7860
+python fastmcp/server.py  # servidor HTTP FastMCP en http://127.0.0.1:8000
 ```
+
+En el chat de terminal escribe `/ayuda`, `/historial`, `/limpiar` o `/salir`.
+La conversación se conserva en memoria hasta que termina el proceso. La interfaz
+web también mantiene un historial separado por sesión del navegador; al borrar
+el chat, borra también esa memoria de conversación.
+
+### API HTTP del servidor FastMCP
+
+El servidor escucha solo en `127.0.0.1:8000`. Expone `GET /`, `GET /tools`,
+`GET /history?session_id=...` y `POST /chat`; además registra las ocho
+herramientas como tools MCP bajo la ruta MCP predeterminada `/mcp`.
+
+Ejemplo de chat:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"¿Qué es el paracetamol?","session_id":"demo"}'
+```
+
+Para seguir una conversación, reutiliza el mismo `session_id`. El historial
+vive en memoria y se pierde al detener el servidor. Para usar el protocolo MCP
+desde un cliente compatible, configura el endpoint `http://127.0.0.1:8000/mcp`.
 
 ## Las 8 tools y cómo funcionan
 
@@ -60,6 +86,7 @@ python app.py    # interfaz web en http://localhost:7860
   y cerrar cada respuesta con el disclaimer.
 - Los datasets son de muestra con fines educativos: verifica siempre con el
   prospecto, tu médico o farmacéutico.
+- La búsqueda de farmacias usa ubicaciones de muestra, no disponibilidad en vivo.
 
 ## Ampliar
 
