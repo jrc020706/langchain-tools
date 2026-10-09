@@ -1,9 +1,21 @@
-langchain>=0.3.0
-langchain-classic>=1.0.0
-langchain-google-genai>=2.0.0
-langchain-community>=0.0.12
-python-dotenv>=1.0.1
-gradio>=5.0.0
-numexpr>=2.10.0
-fastmcp>=2.0.0
-uvicorn>=0.30.0
+# Dependencias directas PINNEADAS a las versiones con las que se ha probado el
+# proyecto (Python 3.14). Fijarlas evita sorpresas de compatibilidad al desplegar.
+# Si añades un paquete, instálalo y vuelve a fijar su versión exacta con `pip freeze`.
+
+# --- Orquestación de agentes / LLM ---
+langchain==1.4.4
+langchain-core==1.6.9
+langchain-classic==1.0.8        # AgentExecutor + create_tool_calling_agent (LangChain >= 1.0)
+langchain-google-genai==4.4.0   # ChatGoogleGenerativeAI (Gemini) - opcional si no hay API key
+
+# --- Servidor MCP / HTTP ---
+fastmcp==4.1.0                  # servidor MCP: tools, resources y prompts
+mcp==2.3.0                      # protocolo MCP (cliente/servidor)
+starlette==1.7.0                # app HTTP subyacente (custom_route, CORS)
+uvicorn==0.54.0                 # servidor ASGI
+
+# --- Interfaz y utilidades ---
+gradio==6.30.0                  # interfaz web (app.py)
+numexpr==2.14.2                 # parser seguro de la tool `calcular`
+requests==2.34.2                # cliente HTTP de las 2 tools que consumen APIs
+python-dotenv==1.2.4            # carga opcional de .env

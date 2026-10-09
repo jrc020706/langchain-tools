@@ -16,16 +16,73 @@ Tools disponibles:
 6. evaluar_urgencia         - descripción de síntomas -> triaje (hogar / médico / 112)
 7. buscar_farmacia          - ubicación -> farmacias cercanas (simulado)
 8. calcular                - expresión matemática -> resultado (parser seguro con numexpr)
+9. consultar_farmacovigilancia - fármaco -> notificaciones de reacciones adversas (API openFDA)  [API internet #1]
+10. buscar_farmacia_real     - ubicación -> farmacias reales de OpenStreetMap (Nominatim + Overpass)  [API internet #2]
+
+Las tools 9 y 10 son las dos que consumen APIs de internet de dos servicios
+en la nube distintos (openFDA / NIH y OpenStreetMap). Ambas son públicas y
+no requieren autenticación ni API key; si la red falla, devuelven un aviso
+y las 9 y 10 hacen fallback a los datasets locales cuando aplica.
 """
 
 import json
+import math
+import time
 import unicodedata
 from difflib import get_close_matches
 from pathlib import Path
 
+import requests
 from langchain_core.tools import tool
 
 DATA_DIR = Path(__file__).parent / "data"
+
+# ---------------------------------------------------------------------------
+# Configuración compartida de las tools que consumen APIs de internet
+# (servicios en la nube distintos, públicos y SIN autenticación)
+# ---------------------------------------------------------------------------
+# API internet #1: openFDA (NIH / U.S. FAERS) - https://open.fda.gov/apis/
+OPENFDA_EVENT_URL = "https://api.fda.gov/drug/event.json"
+# API internet #2: OpenStreetMap - Nominatim (geocodificación) + Overpass (datos)
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+)
+
+# User-Agent identificatorio: lo exige la política de uso de Nominatim/Overpass
+# (no es un secreto ni una credencial: solo identifica la app).
+HTTP_HEADERS = {"User-Agent": "orientador-medicamentos/1.0 (herramienta educativa)"}
+HTTP_TIMEOUT = 15  # segundos; si una API no contesta, la tool degrada con aviso
+
+# Presupuesto total de red por invocación de tool: aunque todas las llamadas
+# fallen, la tool contesta en menos de este tiempo (nunca cuelga el chat).
+PRESUPUESTO_API = 22.0  # segundos
+PRESUPUESTO_GEO = 20.0  # segundos para la tool de OpenStreetMap
+
+# Reparto del presupuesto geográfico: Overpass es el mejor dato (radio + horarios)
+# pero el más propenso a saturarse, así que acotamos su intento para dejar tiempo
+# al fallback de Nominatim dentro del mismo presupuesto.
+OVERPASS_MAX = 9.0
+NOMINATIM_MAX = 7.0
+
+
+def _restante(inicio: float, limite: float) -> float:
+    """Segundos que quedan del presupuesto (>= 0)."""
+    return max(0.0, limite - (time.monotonic() - inicio))
+
+
+def _get_json(url: str, *, params: dict | None = None, data: dict | None = None,
+              timeout: float | None = None) -> dict | list:
+    """GET/POST JSON con timeout. Lanza excepción si la API no contesta o falla."""
+    t = HTTP_TIMEOUT if timeout is None else max(1.0, timeout)
+    if data is not None:
+        resp = requests.post(url, data=data, headers=HTTP_HEADERS, timeout=t)
+    else:
+        resp = requests.get(url, params=params, headers=HTTP_HEADERS, timeout=t)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def _load(nombre: str):
@@ -700,6 +757,485 @@ def calcular(expresion: str, language: str = "auto") -> str:
         return f"Error evaluando '{expresion}': {e}\n{_disclaimer(lang)}"
 
 
+# ---------------------------------------------------------------------------
+# TOOL 9: consultar_farmacovigilancia  ->  API internet #1 (openFDA, nube NIH)
+# ---------------------------------------------------------------------------
+# Principio activo en español (base local) -> nombre genérico USAN que usa openFDA
+_USAN_POR_ACTIVO = {
+    "paracetamol": "acetaminophen",
+    "acido acetilsalicilico": "aspirin",
+    "ibuprofeno": "ibuprofen",
+    "loratadina": "loratadine",
+    "cetirizina": "cetirizine",
+    "omeprazol": "omeprazole",
+    "amoxicilina": "amoxicillin",
+    "amoxicilina/acido clavulanico": "amoxicillin and clavulanate potassium",
+    "diclofenaco": "diclofenac",
+    "salbutamol (albuterol)": "albuterol",
+    "atorvastatina": "atorvastatin",
+    "enalapril": "enalapril maleate",
+    "losartan": "losartan potassium",
+    "metformina": "metformin hydrochloride",
+    "warfarina": "warfarin sodium",
+    "diazepam": "diazepam",
+    "loperamida": "loperamide hydrochloride",
+    "melatonina": "melatonin",
+}
+
+
+def _terminos_openfda(activo: str) -> list[str]:
+    """Candidatos de búsqueda para openFDA (USAN, marca y nombre local)."""
+    n = _norm(activo)
+    terminos = []
+    usan = _USAN_POR_ACTIVO.get(n)
+    if usan:
+        terminos.append(usan)
+    # Marca local conocida (p. ej. "augmentin" para amoxicilina+clavulánico)
+    for med in MEDICAMENTOS:
+        if _norm(med["principio_activo"]) == n:
+            for marca in med.get("nombre_comercial", []):
+                terminos.append(_norm(marca))
+            break
+    terminos.append(n)
+    # Sin duplicados, conservando el orden
+    vistos, orden = set(), []
+    for t in terminos:
+        if t and t not in vistos:
+            vistos.add(t)
+            orden.append(t)
+    return orden
+
+
+def _buscar_en_openfda(activo: str) -> tuple[dict, str] | None:
+    """Consulta openFDA (FAERS) hasta encontrar reportes para el fármaco.
+
+    Prueba varios campos exactos (genérico, medicinalproduct, marca) para
+    distintos nombres candidatos, dentro de un presupuesto de tiempo.
+    Devuelve (payload, término_acertado) o None.
+    """
+    campos = (
+        "patient.drug.openfda.generic_name",
+        "patient.drug.medicinalproduct",
+        "patient.drug.openfda.brand_name",
+    )
+    inicio = time.monotonic()
+    for termino in _terminos_openfda(activo)[:3]:
+        for campo in campos:
+            quedan = _restante(inicio, PRESUPUESTO_API)
+            if quedan < 2.0:
+                return None
+            try:
+                payload = _get_json(
+                    OPENFDA_EVENT_URL,
+                    params={
+                        "search": f'{campo}:"{termino.upper()}"',
+                        "limit": 100,
+                    },
+                    timeout=min(HTTP_TIMEOUT, quedan),
+                )
+            except Exception:
+                continue
+            if isinstance(payload, dict) and payload.get("results"):
+                return payload, termino.upper()
+    return None
+
+
+@tool
+def consultar_farmacovigilancia(nombre: str, language: str = "auto") -> str:
+    """Look up real-world adverse-event reports for a medicine (API internet #1: openFDA).
+    Busca notificaciones de farmacovigilancia (efectos adversos declarados) de un
+    medicamento en la API pública openFDA / FAERS (servicio en la nube del NIH,
+    sin autenticación). Devuelve nº de casos, reacciones más frecuentes en la
+    muestra y desenlace, con la salvedad de que la correlación implica causalidad.
+    Returns number of reported cases, most frequent reactions in the sample,
+    outcomes and the causality caveat.
+
+    Args:
+        nombre: Nombre comercial o principio activo (ej: "paracetamol", "Gelocatil").
+            Brand or active ingredient (e.g. "ibuprofen", "Advil").
+        language: Force response language: "es", "en" or "auto" (detect). Default "auto".
+
+    Returns:
+        Resumen de farmacovigilancia o aviso de que no hay reportes / la API no está
+        disponible. Pharmacovigilance summary, or a notice if there are no reports
+        or the API is unreachable.
+    """
+    lang = language if language in ("es", "en") else _detect_lang(nombre)
+    activo = _buscar_principio_activo(nombre) or nombre
+
+    try:
+        busqueda = _buscar_en_openfda(activo)
+    except Exception:
+        busqueda = None
+
+    if busqueda is None:
+        if lang == "en":
+            return (
+                f"No adverse-event reports found in openFDA/FAERS for '{nombre}'. "
+                f"That does not mean the medicine is safe or unsafe: the database only "
+                f"contains what has been voluntarily reported. "
+                f"Check the leaflet or ask your pharmacist. {_disclaimer(lang)}"
+            )
+        return (
+            f"No he encontrado notificaciones de farmacovigilancia en openFDA/FAERS para "
+            f"'{nombre}'. Eso no significa que el medicamento sea seguro o peligroso: la "
+            f"base solo recoge lo que se ha declarado de forma voluntaria. Revisa el "
+            f"prospecto o consulta al farmacéutico. {_disclaimer(lang)}"
+        )
+
+    payload, termino = busqueda
+    resultados = payload.get("results", [])
+    total = payload.get("meta", {}).get("results", {}).get("total", len(resultados))
+
+    # Recuento de reacciones y desenlaces en la muestra recuperada
+    reacciones: dict[str, int] = {}
+    desenlaces: dict[str, int] = {}
+    graves = 0
+    for r in resultados:
+        if str(r.get("serious")) == "1":
+            graves += 1
+        for reac in r.get("patient", {}).get("reaction", []) or []:
+            pt = (reac.get("reactionmeddrapt") or "").strip()
+            if pt:
+                reacciones[pt] = reacciones.get(pt, 0) + 1
+        desenlace = (r.get("patient", {}).get("patientoutcome") or "").strip()
+        if desenlace:
+            etiqueta = {"DE": "recovered/resolved", "LT": "life-threatening",
+                        "HO": "hospitalization", "DS": "death", "OT": "other"}.get(
+                desenlace, desenlace)
+            desenlaces[etiqueta] = desenlaces.get(etiqueta, 0) + 1
+
+    top_reacciones = sorted(reacciones.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    top_desenlaces = sorted(desenlaces.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    muestra = len(resultados)
+
+    if lang == "en":
+        lineas = [
+            f"Pharmacovigilance report for {termino} (source: openFDA / FAERS, API internet).",
+            f"· Total adverse-event reports in the database: {total:,}",
+            f"· Sample analysed: {muestra} reports ({graves} marked serious).",
+            "· Most frequent reactions in the sample:",
+        ]
+        lineas += [f"    - {r} ({c})" for r, c in top_reacciones] or ["    - not reported"]
+        if top_desenlaces:
+            lineas.append("· Outcomes in the sample: " + ", ".join(
+                f"{k}: {v}" for k, v in top_desenlaces))
+        lineas.append(
+            "· Reading: these are spontaneous reports, correlation does not imply "
+            "causation, and under-reporting is common. Not a substitute for the "
+            f"leaflet or your doctor. {_disclaimer(lang)}"
+        )
+        return "\n".join(lineas)
+
+    lineas = [
+        f"Informe de farmacovigilancia de {termino} (fuente: openFDA / FAERS, API internet).",
+        f"· Total de notificaciones de reacciones adversas en la base: {total:,}",
+        f"· Muestra analizada: {muestra} notificaciones ({graves} marcadas como graves).",
+        "· Reacciones más frecuentes en la muestra:",
+    ]
+    lineas += [f"    - {r} ({c})" for r, c in top_reacciones] or ["    - no informadas"]
+    if top_desenlaces:
+        lineas.append("· Desenlace en la muestra: " + ", ".join(
+            f"{k}: {v}" for k, v in top_desenlaces))
+    lineas.append(
+        "· Cómo leerlo: son notificaciones espontáneas, la correlación no implica "
+        "causalidad y el subregistro es habitual. No sustituye al prospecto ni a "
+        f"tu médico. {_disclaimer(lang)}"
+    )
+    return "\n".join(lineas)
+
+
+# ---------------------------------------------------------------------------
+# TOOL 10: buscar_farmacia_real  ->  API internet #2 (OpenStreetMap, nube OSM)
+# ---------------------------------------------------------------------------
+def _geocodificar(direccion: str, timeout: float | None = None) -> tuple[float, float, str, str | None] | None:
+    """(lat, lon, nombre, localidad) de una dirección vía Nominatim (sin API key)."""
+    datos = _get_json(
+        NOMINATIM_URL,
+        params={"q": direccion, "format": "jsonv2", "limit": 1, "addressdetails": 1},
+        timeout=timeout,
+    )
+    if not datos:
+        return None
+    primero = datos[0]
+    addr = primero.get("address", {}) or {}
+    localidad = next(
+        (addr[k] for k in ("city", "town", "village", "municipality", "suburb", "county")
+         if addr.get(k)),
+        None,
+    )
+    return (float(primero["lat"]), float(primero["lon"]),
+            primero.get("display_name", direccion), localidad)
+
+
+def _farmacias_overpass(lat: float, lon: float, radio_m: int = 3000,
+                         tiempo_max: float = HTTP_TIMEOUT) -> list[dict]:
+    """Farmacias (amenity=pharmacy) cercanas vía Overpass API, con varios mirrors.
+
+    `tiempo_max` limita el tiempo total de la búsqueda (presupuesto de la tool).
+    """
+    consulta = (
+        f'[out:json][timeout:25];(node["amenity"="pharmacy"]'
+        f"(around:{radio_m},{lat},{lon}););out center tags 15;"
+    )
+    inicio = time.monotonic()
+    ultimo_error = None
+    # Pasada 1: los tres mirrors. Pasada 2: repetimos el principal (suele ser
+    # un 504/429 transitorio por saturación) si queda presupuesto.
+    orden = list(OVERPASS_URLS) + [OVERPASS_URLS[0]]
+    for posicion, endpoint in enumerate(orden):
+        quedan = _restante(inicio, tiempo_max)
+        if quedan < 2.0:
+            break
+        try:
+            payload = _get_json(endpoint, data={"data": consulta},
+                                timeout=min(HTTP_TIMEOUT, quedan))
+        except Exception as e:  # mirror caído o saturado -> probamos el siguiente
+            ultimo_error = e
+            if posicion == len(OVERPASS_URLS) - 1 and _restante(inicio, tiempo_max) > 4.0:
+                time.sleep(1.5)
+            continue
+        elementos = payload.get("elements") if isinstance(payload, dict) else None
+        if elementos is None:
+            continue
+        farmacias = []
+        for el in elementos:
+            tags = el.get("tags", {}) or {}
+            flon = el.get("lon", el.get("center", {}).get("lon"))
+            flat = el.get("lat", el.get("center", {}).get("lat"))
+            farmacias.append({
+                "nombre": tags.get("name", "Farmacia"),
+                "direccion": " ".join(filter(None, [
+                    tags.get("addr:street", ""),
+                    tags.get("addr:housenumber", ""),
+                ])).strip() or tags.get("addr:full", ""),
+                "ciudad": tags.get("addr:city", ""),
+                "telefono": tags.get("phone", tags.get("contact:phone", "")),
+                "horario": tags.get("opening_hours", ""),
+                "lat": float(flat) if flat is not None else None,
+                "lon": float(flon) if flon is not None else None,
+            })
+        if farmacias:
+            return farmacias
+    if ultimo_error:
+        raise ultimo_error
+    return []
+
+
+def _farmacias_nominatim(direccion: str, localidad: str | None = None,
+                         tiempo_max: float = HTTP_TIMEOUT) -> list[dict]:
+    """Fallback: busca farmacias directamente en Nominatim (sin Overpass).
+
+    Útil cuando Overpass está saturado o la dirección no se geocodifica bien.
+    Solo conserva resultados cuya categoría es amenity=pharmacy.
+    """
+    consultas = [f"pharmacy in {direccion}", f"farmacia en {direccion}"]
+    if localidad and _norm(localidad) != _norm(direccion):
+        consultas += [f"pharmacy in {localidad}", f"farmacia en {localidad}"]
+
+    inicio = time.monotonic()
+    farmacias, vistas = [], set()
+    for consulta in consultas:
+        quedan = _restante(inicio, tiempo_max)
+        if quedan < 2.0:
+            break
+        try:
+            datos = _get_json(
+                NOMINATIM_URL,
+                params={"q": consulta, "format": "jsonv2", "limit": 10, "addressdetails": 0},
+                timeout=min(HTTP_TIMEOUT, quedan),
+            )
+        except Exception:
+            continue
+        for r in datos or []:
+            if r.get("category") != "amenity" or r.get("type") != "pharmacy":
+                continue
+            if r.get("osm_id") in vistas:
+                continue
+            vistas.add(r.get("osm_id"))
+            partes = [p.strip() for p in (r.get("display_name") or "").split(",")]
+            farmacias.append({
+                "nombre": r.get("name") or (partes[0] if partes else "Farmacia"),
+                "direccion": ", ".join(partes[1:3]),
+                "ciudad": ", ".join(partes[3:5]),
+                "telefono": "",
+                "horario": "",
+                "lat": float(r["lat"]),
+                "lon": float(r["lon"]),
+            })
+        if farmacias:
+            break
+    return farmacias
+
+
+def _distancia_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distancia en línea recta (haversine) entre dos coordenadas."""
+    radio = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
+    return radio * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@tool
+def buscar_farmacia_real(ubicacion: str, language: str = "auto") -> str:
+    """Find real pharmacies near a place using OpenStreetMap (API internet #2).
+    Busca farmacias REALES cercanas a una ciudad o dirección usando las APIs
+    públicas de OpenStreetMap (Nominatim para geocodificar + Overpass para los
+    puntos de farmacia). Servicio en la nube distinto de openFDA y sin
+    autenticación. Si la red falla, indica cómo usar la tool local simulada.
+    Returns up to 5 nearby pharmacies with distance, address, hours and phone.
+
+    Args:
+        ubicacion: Ciudad, barrio o dirección (ej: "Madrid", "Gran Vía 20, Madrid").
+            City, district or street address (e.g. "Barcelona", "20 Oxford St, London").
+        language: Force response language: "es", "en" or "auto" (detect). Default "auto".
+
+    Returns:
+        Lista de farmacias reales con distancia y datos, o aviso de indisponibilidad.
+        List of real pharmacies with distance and details, or an unavailability notice.
+    """
+    lang = language if language in ("es", "en") else _detect_lang(ubicacion)
+    inicio = time.monotonic()
+
+    # 1) Geocodificar la ubicación (Nominatim) para poder medir distancias.
+    #    Se acota a 6 s para no comerse el presupuesto que necesitan Overpass
+    #    y el fallback de Nominatim dentro de PRESUPUESTO_GEO.
+    try:
+        geocodigo = _geocodificar(
+            ubicacion,
+            timeout=min(6.0, HTTP_TIMEOUT, _restante(inicio, PRESUPUESTO_GEO)))
+    except Exception:
+        geocodigo = None
+    referencia = geocodigo[:2] if geocodigo else None
+    localidad = geocodigo[3] if geocodigo else None
+
+    # 2) Farmacias: Overpass alrededor del punto de referencia (datos ricos)
+    farmacias: list[dict] = []
+    error_overpass: Exception | None = None
+    if referencia and _restante(inicio, PRESUPUESTO_GEO) > 3.0:
+        try:
+            farmacias = _farmacias_overpass(
+                *referencia,
+                tiempo_max=min(OVERPASS_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+        except Exception as e:
+            error_overpass = e
+
+    # 3) Fallback: búsqueda directa de farmacias en Nominatim (tiempo reservado
+    #    con NOMINATIM_MAX para que Overpass no se lleve todo el presupuesto)
+    if not farmacias and _restante(inicio, PRESUPUESTO_GEO) > 3.0:
+        try:
+            farmacias = _farmacias_nominatim(
+                ubicacion, localidad,
+                tiempo_max=min(NOMINATIM_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+        except Exception:
+            farmacias = []
+
+    # 3b) Overpass falla de forma transitoria (504/429 por saturación): si el
+    # fallback de Nominatim solo ha devuelto farmacias lejanas, reintentamos
+    # Overpass una última vez antes de dar por bueno el resultado.
+    if referencia and farmacias and _restante(inicio, PRESUPUESTO_GEO) > 4.0:
+        distancias_previas = [
+            _distancia_km(referencia[0], referencia[1], f["lat"], f["lon"])
+            for f in farmacias if f.get("lat") is not None and f.get("lon") is not None
+        ]
+        if distancias_previas and min(distancias_previas) > 5.0:
+            time.sleep(1.0)
+            try:
+                reintento = _farmacias_overpass(
+                    *referencia,
+                    tiempo_max=min(OVERPASS_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+            except Exception:
+                reintento = []
+            if reintento:
+                farmacias = reintento
+
+    if not farmacias:
+        motivo = type(error_overpass).__name__ if error_overpass else "sin resultados"
+        if lang == "en":
+            return (
+                f"No pharmacies found on OpenStreetMap for '{ubicacion}' ({motivo}). "
+                f"Try a bigger town or a more precise address, retry in a moment, or use "
+                f"the local simulated search (tool 'buscar_farmacia'). {_disclaimer(lang)}"
+            )
+        return (
+            f"No he encontrado farmacias en OpenStreetMap para '{ubicacion}' ({motivo}). "
+            f"Prueba con una ciudad más grande o una dirección más concreta, repite la "
+            f"consulta en unos segundos o usa la búsqueda local simulada (tool "
+            f"'buscar_farmacia'). {_disclaimer(lang)}"
+        )
+
+    if referencia:
+        lat, lon = referencia
+        for f in farmacias:
+            if f.get("lat") is not None and f.get("lon") is not None:
+                f["distancia_km"] = round(_distancia_km(lat, lon, f["lat"], f["lon"]), 2)
+            else:
+                f["distancia_km"] = None
+        farmacias.sort(key=lambda f: (f["distancia_km"] is None, f["distancia_km"] or 0))
+    else:
+        for f in farmacias:
+            f["distancia_km"] = None
+
+    # Con referencia geográfica, solo mostramos farmacias realmente cercanas
+    # (el fallback de Nominatim puede devolver puntos de otras zonas).
+    if referencia:
+        cercanas = [f for f in farmacias
+                    if f["distancia_km"] is not None and f["distancia_km"] <= 5.0][:5]
+        if not cercanas:
+            cercanas = farmacias[:5]
+    else:
+        cercanas = farmacias[:5]
+
+    # Aviso si lo más cercano queda lejos (p. ej. geocodificación imprecisa)
+    mas_cerca = next((f["distancia_km"] for f in cercanas
+                      if f.get("distancia_km") is not None), None)
+    nota_ubicacion = ""
+    if mas_cerca is not None and mas_cerca > 5.0:
+        if lang == "en":
+            nota_ubicacion = (
+                f"· The closest match is {mas_cerca} km away: check the spelling of the "
+                f"place or add the street/city. "
+            )
+        else:
+            nota_ubicacion = (
+                f"· Lo más cercano está a {mas_cerca} km: revisa cómo está escrita la "
+                f"ubicación o añade calle y ciudad. "
+            )
+
+    lineas = []
+    if lang == "en":
+        lineas.append(f"Real pharmacies near '{ubicacion}' (OpenStreetMap, API internet):")
+        for f in cercanas:
+            dist = f"{f['distancia_km']} km" if f["distancia_km"] is not None else "distance n/a"
+            extras = " | ".join(x for x in [
+                f["direccion"], f["ciudad"], f["telefono"] and f"Tel: {f['telefono']}",
+                f["horario"] and f"Hours: {f['horario']}",
+            ] if x)
+            lineas.append(f"· {f['nombre']} ({dist})" + (f"\n  {extras}" if extras else ""))
+        lineas.append(
+            nota_ubicacion +
+            "Data © OpenStreetMap contributors (ODbL). Opening hours may be "
+            "outdated: call before going. " + _disclaimer(lang)
+        )
+    else:
+        lineas.append(f"Farmacias reales cerca de '{ubicacion}' (OpenStreetMap, API internet):")
+        for f in cercanas:
+            dist = f"{f['distancia_km']} km" if f["distancia_km"] is not None else "distancia n/d"
+            extras = " | ".join(x for x in [
+                f["direccion"], f["ciudad"], f["telefono"] and f"Tel: {f['telefono']}",
+                f["horario"] and f"Horario: {f['horario']}",
+            ] if x)
+            lineas.append(f"· {f['nombre']} ({dist})" + (f"\n  {extras}" if extras else ""))
+        lineas.append(
+            nota_ubicacion +
+            "Datos © de los colaboradores de OpenStreetMap (ODbL). El horario puede "
+            "desactualizarse: llama antes de ir. " + _disclaimer(lang)
+        )
+    return "\n".join(lineas)
+
+
 # Lista de tools que se entregan al agente
 TOOLS = [
     analizar_sintomas,
@@ -710,4 +1246,6 @@ TOOLS = [
     evaluar_urgencia,
     buscar_farmacia,
     calcular,
+    consultar_farmacovigilancia,
+    buscar_farmacia_real,
 ]

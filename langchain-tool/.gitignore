@@ -5,8 +5,13 @@ __pycache__/
 
 # Virtual environments
 venv/
+.venv/
 env/
 ENV/
+
+# Logs / procesos locales
+*.log
+nohup.out
 
 # Distribution / packaging
 dist/

@@ -1,0 +1,53 @@
+# Blueprint de Render (raíz del repo): despliega los dos servicios del proyecto.
+#
+#   orientador-web -> interfaz Gradio (app.py)         -> https://orientador-web.onrender.com
+#   orientador-mcp -> API HTTP + servidor MCP (mcp_server.py) -> https://orientador-mcp.onrender.com
+#
+# `rootDir: langchain-tool` le indica a Render dónde está el código: los comandos
+# de build/arranque se ejecutan dentro de esa carpeta.
+#
+# Uso:
+#   1. Sube este repo a GitHub.
+#   2. En https://dashboard.render.com -> New -> Blueprint -> conecta el repo.
+#      (Render detecta este render.yaml en la raíz del repositorio.)
+#   3. Render crea ambos servicios. Opcional: rellena el secret GOOGLE_API_KEY en
+#      cada servicio (Environment) para usar Gemini real. SIN API KEY todo funciona
+#      igual en modo demo simulado, así que el despliegue NO requiere autenticación.
+#   4. La versión de Python la fija el archivo `.python-version` de la raíz (3.14),
+#      la misma con la que está probado el proyecto.
+#
+# Nota: Render inyecta PORT automáticamente; solo hace falta HOST=0.0.0.0.
+# Ningún endpoint pide usuario/contraseña/API key: son abiertos (requisito del proyecto).
+
+services:
+  - type: web
+    name: orientador-web
+    runtime: python
+    plan: free
+    rootDir: langchain-tool
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: MODEL_NAME
+        value: gemini-2.5-flash
+      - key: GOOGLE_API_KEY
+        sync: false   # secret opcional: se rellena a mano en el dashboard de Render
+
+  - type: web
+    name: orientador-mcp
+    runtime: python
+    plan: free
+    rootDir: langchain-tool
+    buildCommand: pip install -r requirements.txt
+    startCommand: python mcp_server.py
+    healthCheckPath: /
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: MODEL_NAME
+        value: gemini-2.5-flash
+      - key: GOOGLE_API_KEY
+        sync: false   # secret opcional: se rellena a mano en el dashboard de Render

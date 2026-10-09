@@ -1,0 +1,66 @@
+{
+  "proyecto": "langchain-tools — Orientador de Medicamentos (LangChain + Gemini + MCP)",
+  "repositorio": "langchain-tools",
+  "politica_de_secrets": "No se almacenan API keys, tokens, contraseñas ni ningún otro secreto en este registro. Las referencias a claves son genéricas (p. ej. GOOGLE_API_KEY opcional) y nunca incluyen su valor.",
+  "zona_horaria": "-05:00",
+  "prompts": [
+    {
+      "id": 1,
+      "timestamp": "2026-10-09T08:26:00-05:00",
+      "agente_o_herramienta": "OpenCode (CLI de agentes de código)",
+      "proveedor": "opencode",
+      "modelo": "mimo-v2.6-flash-free",
+      "prompt": "al menos tres recursos\n\n- Al menos 5 herramientas, dos de ellas, deben de consumir una API de internet (Ambas deben ser servicios en la nube diferentes)\n\n- Al menos 2 prompts para consumir las API de internet \n\n- Debe estar desplegado para poderlo consumir en cualquier cliente \n\n- No debe de pedir autenticación \n\n-  al menos, una skill para agentes\n\n-  documentación del proyecto. \n\n\nAI-assisted development trace\n\nCreate a /coding-assistance/ folder in the repository.\n\ncoding-assistance/README.md must state which coding agent(s), model(s) and AI tools were used, and what they\nwere used for.\n\ncoding-assistance/prompts.json must record every prompt sent to an AI coding assistant during development. Each\nentry should include at least: timestamp, agent/tool, model, prompt and purpose.\n\nDo not store API keys, tokens, passwords or other secrets in the log. *siguiendo este texto alinea el proyecto a este y en su defecto mejoralo, adaptando las versiones de todo para que al momento de desplegar no haya issues.",
+      "artifacts": [
+        "skills/orientador-medicamentos/SKILL.md",
+        "langchain-tool/tools.py",
+        "langchain-tool/fastmcp/server.py",
+        "render.yaml",
+        ".python-version",
+        "langchain-tool/requirements.txt",
+        "langchain-tool/Dockerfile",
+        "README.md",
+        "langchain-tool/README.md",
+        "langchain-tool/docs/api.md",
+        "langchain-tool/docs/despliegue.md",
+        "langchain-tool/docs/arquitectura.md",
+        "coding-assistance/README.md",
+        "coding-assistance/prompts.json"
+      ],
+      "purpose": "Alinear el proyecto con el enunciado: añadir los 3 recursos MCP mínimos (6 en total), 5+ tools (10) de las que 2 consumen APIs de internet de nubes distintas (openFDA y OpenStreetMap), 2+ prompts MCP para consumir esas APIs (3), preparar el despliegue sin autenticación para cualquier cliente (render.yaml en raíz con rootDir, .python-version y requirements fijados, Dockerfile), crear la skill para agentes, escribir la documentación y generar esta trazabilidad de desarrollo asistido por IA."
+    },
+    {
+      "id": 2,
+      "timestamp": "2026-10-09T08:45:00-05:00",
+      "agente_o_herramienta": "OpenCode (CLI de agentes de código) — paso de verificación con webfetch",
+      "proveedor": "opencode",
+      "modelo": "mimo-v2.6-flash-free",
+      "prompt": "Verifica la versión de Python que admite Render en este momento (render.com/docs/python-version) y el esquema del Blueprint render.yaml, para fijar la versión del proyecto de forma que el despliegue no falle.",
+      "artifacts": [
+        ".python-version",
+        "render.yaml",
+        "langchain-tool/docs/despliegue.md"
+      ],
+      "purpose": "Alinear versiones entre local (Python 3.14) y despliegue: Render ya admite 3.14 por defecto, se elimina el campo obsoleto pythonVersion del blueprint y se fija la versión con .python-version."
+    },
+    {
+      "id": 3,
+      "timestamp": "2026-10-09T08:49:00-05:00",
+      "agente_o_herramienta": "OpenCode (CLI de agentes de código) — paso de verificación con webfetch",
+      "proveedor": "opencode",
+      "modelo": "mimo-v2.6-flash-free",
+      "prompt": "Consulta la documentación de OpenCode sobre Agent Skills para saber dónde colocar el SKILL.md y qué campos admite el frontmatter (name, description…), y crea la skill del proyecto en una ruta que el agente descubra automáticamente.",
+      "artifacts": [
+        "skills/orientador-medicamentos/SKILL.md",
+        ".opencode/skills/orientador-medicamentos/SKILL.md",
+        ".claude/skills/orientador-medicamentos/SKILL.md"
+      ],
+      "purpose": "Crear la skill para agentes con el formato correcto (frontmatter name+description, nombre de carpeta coincidente) y enlazarla en las rutas de auto-descubrimiento de OpenCode y Claude Code."
+    }
+  ],
+  "notas": [
+    "Los prompts 2 y 3 son las consultas explícitas enviadas a herramientas de IA (webfetch/documentación) durante la misma sesión de desarrollo; se registran igualmente por transparencia.",
+    "Los commits anteriores a esta sesión (2026-10-07 y 2026-10-08: arquitectura hexagonal, bilingüe y Render) se realizaron con asistencia de IA, pero sus prompts no se registraron en el momento: este archivo cubre desde la sesión del 2026-10-09 y debe ampliarse con cada prompt nuevo (mismos campos: timestamp, agent/tool, model, prompt, purpose).",
+    "No se incluyen mensajes de sistema del harness ni instrucciones operativas internas; solo prompts enviados por la persona autora al asistente de código."
+  ]
+}

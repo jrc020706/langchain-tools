@@ -50,6 +50,10 @@ RULES:
    - Never mix languages in the same answer.
 2. You have tools for: symptom analysis, drug info sheets, pediatric dose calculation,
    drug interaction checks, contraindications, urgency triage, pharmacy search and math.
+   Two tools use public internet APIs (no credentials): `consultar_farmacovigilancia`
+   (openFDA/FAERS adverse-event reports - use for reported side effects) and
+   `buscar_farmacia_real` (OpenStreetMap real pharmacies - use for actual pharmacies,
+   fall back to the local `buscar_farmacia` if the API is down).
    Use them whenever the user asks about symptoms, medicines, doses, interactions,
    contraindications, urgency or pharmacies. Base your answer on the tool results.
    Tool outputs may contain Spanish data (drug database is in Spanish): when the user
@@ -159,6 +163,14 @@ _PATRONES = [
                                     "ulcera", "ulcer", "gastritis", "niño", "child", "bebe", "baby",
                                     "anciano", "elderly", "abuelo", "anticoagulante", "anticoagulant", "sintrom",
                                     "warfarin", "warfarina", "contraindication"]),
+    ("buscar_farmacia_real", ["farmacia real", "farmacias reales", "real pharmacy",
+                               "real pharmacies", "nearest pharmacy", "closest pharmacy",
+                               "pharmacy near", "farmacia cerca", "farmacias cerca",
+                               "openstreetmap", "nominatim", "en el mapa", "on the map"]),
+    ("consultar_farmacovigilancia", ["farmacovigilancia", "pharmacovigilance", "openfda",
+                                     "faers", "efectos adversos", "reacciones adversas",
+                                     "adverse events", "adverse reactions", "side effects",
+                                     "notificaciones de reacciones", "reaction reports"]),
     ("buscar_farmacia", ["farmacia", "pharmacy", "guardia", "on duty", "on-duty", "donde comprar",
                          "dónde comprar", "where to buy", "24 hours", "24 horas"]),
     ("calcular", []),  # se detecta por regex matemática
@@ -256,6 +268,13 @@ class _FakeToolBinding(Runnable):
             return {"descripcion": pregunta, "language": lang_q}
         if nombre_tool == "evaluar_urgencia":
             return {"descripcion": pregunta, "language": lang_q}
+        if nombre_tool == "buscar_farmacia_real":
+            return {"ubicacion": pregunta, "language": lang_q}
+        if nombre_tool == "consultar_farmacovigilancia":
+            med = next((m for m in _MED_NOMBRES if len(m) >= 4 and m in q), None)
+            if med:
+                return {"nombre": _to_lang(med), "language": lang_q}
+            return None
         if nombre_tool == "buscar_farmacia":
             return {"ubicacion": pregunta, "language": lang_q}
         if nombre_tool == "buscar_medicamento":

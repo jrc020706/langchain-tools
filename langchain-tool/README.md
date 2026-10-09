@@ -1,29 +1,58 @@
-# 💊 Agente de orientación de medicamentos (LangChain + Gemini)
+# 💊 Agente de orientación de medicamentos (LangChain + Gemini + MCP)
 
-Agente conversacional en español que orienta sobre medicamentos según síntomas:
+Agente conversacional bilingüe (ES/EN) que orienta sobre medicamentos según síntomas:
 analiza síntomas, da fichas de medicamentos, calcula dosis pediátricas por peso,
-revisa interacciones y contraindicaciones, hace triaje de urgencia y busca farmacias.
+revisa interacciones y contraindicaciones, hace triaje de urgencia, consulta
+**farmacovigilancia real (openFDA)** y busca **farmacias reales (OpenStreetMap)**.
+
+> ⚠️ Orientación general educativa: **no diagnostica ni receta**. Ante señales de
+> alarma (dolor torácico, dificultad para respirar, sangrado abundante, pérdida de
+> conciencia) llama al **112**.
+
+---
+
+## Requisitos del proyecto y cómo los cumple
+
+| Requisito | Dónde se cumple |
+|---|---|
+| Al menos **3 resources** | 6 resources MCP (`GET /resources`): 5 datasets JSON + 1 guía Markdown |
+| Al menos **5 tools** (2 de APIs de internet de **nubes distintas**) | 10 tools; `consultar_farmacovigilancia` → **openFDA/FAERS (NIH)** y `buscar_farmacia_real` → **OpenStreetMap (Nominatim + Overpass)** |
+| Al menos **2 prompts** para consumir esas APIs | 3 prompts MCP (`GET /prompts`): `farmacovigilancia_openfda`, `farmacias_reales_osm`, `consulta_internet` |
+| **Desplegado y consumible desde cualquier cliente** | `render.yaml` en la raíz del repo (2 servicios) + `Dockerfile`; endpoint MCP HTTP `POST /mcp` y REST `POST /chat`, con CORS `*` y respuestas JSON planas |
+| **Sin autenticación** | Ningún endpoint pide usuario, contraseña ni API key; `GOOGLE_API_KEY` es opcional (sin ella funciona en modo demo) |
+| Al menos **1 skill para agentes** | [`skills/orientador-medicamentos/SKILL.md`](../skills/orientador-medicamentos/SKILL.md) (enlazada en `.opencode/skills/` y `.claude/skills/`) |
+| **Documentación** | Este README + [`docs/`](docs/) (`api.md`, `despliegue.md`, `arquitectura.md`) |
+| Trazabilidad de desarrollo con IA | [`../coding-assistance/README.md`](../coding-assistance/README.md) y [`../coding-assistance/prompts.json`](../coding-assistance/prompts.json) |
+
+---
 
 ## Estructura
 
 ```
-langchain-tool/
-├── agent.py        # Agente: Gemini + AgentExecutor + memoria por sesión
-├── tools.py        # Las 8 tools (leen de data/*.json)
-├── app.py          # Interfaz web con Gradio (http://localhost:7860)
-├── main.py         # Chat interactivo por terminal
-├── fastmcp/server.py # Servidor HTTP FastMCP
-├── mcp_server.py   # Alias de compatibilidad para iniciar FastMCP
-├── data/
-│   ├── medicamentos.json       # 18 fármacos comunes en España
-│   ├── sintomas.json           # 24 grupos de síntomas
-│   ├── interacciones.json      # 26 interacciones frecuentes
-│   ├── contraindicaciones.json # 12 condiciones (embarazo, HTA, riñón...)
-│   └── farmacias.json          # 10 farmacias de muestra
-├── .env.example    # Plantilla de configuración
-├── render.yaml     # Blueprint de Render (2 servicios: web + MCP)
-├── requirements.txt
-└── README.md
+langchain-tools/                    # raíz del repositorio
+├── render.yaml                     # Blueprint de Render (2 servicios, rootDir: langchain-tool)
+├── .python-version                 # 3.14 -> misma versión en local y en despliegue
+├── skills/orientador-medicamentos/ # skill de agente (SKILL.md)
+├── .opencode/skills/…  y  .claude/skills/…   # enlaces para auto-descubrimiento
+├── coding-assistance/              # trazabilidad del asistente de código
+└── langchain-tool/
+    ├── agent.py                    # agente: Gemini + AgentExecutor + memoria por sesión
+    ├── tools.py                    # las 10 tools (8 locales + 2 que consumen APIs)
+    ├── app.py                      # interfaz web Gradio (http://localhost:7860)
+    ├── main.py                     # chat interactivo por terminal
+    ├── fastmcp/server.py           # servidor MCP HTTP: tools + resources + prompts
+    ├── mcp_server.py               # alias de arranque de FastMCP
+    ├── Dockerfile / .dockerignore  # despliegue alternativo en contenedor
+    ├── data/
+    │   ├── medicamentos.json       # 18 fármacos comunes en España
+    │   ├── sintomas.json           # 24 grupos de síntomas
+    │   ├── interacciones.json      # 26 interacciones frecuentes
+    │   ├── contraindicaciones.json # 12 condiciones (embarazo, HTA, riñón…)
+    │   └── farmacias.json          # 10 farmacias de muestra (simuladas)
+    ├── docs/                       # documentación ampliada
+    ├── .env.example                # plantilla de configuración
+    ├── requirements.txt            # dependencias con versión fijada
+    └── README.md                   # este archivo
 ```
 
 ## Instalación
@@ -31,135 +60,161 @@ langchain-tool/
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # y pon tu GOOGLE_API_KEY (gratis en https://aistudio.google.com)
+cp .env.example .env   # opcional: pon tu GOOGLE_API_KEY (gratis en https://aistudio.google.com)
 ```
+
+Las versiones de `requirements.txt` están **fijadas** a las probadas con
+**Python 3.14** (la misma que fija `.python-version`), así que la instalación
+local y la del despliegue resuelven lo mismo.
 
 Sin API key funciona igual en **modo simulado** (demo).
 
 ## Uso
 
 ```bash
-python main.py   # chat interactivo por terminal
-python app.py    # interfaz web en http://localhost:7860
-python fastmcp/server.py  # servidor HTTP FastMCP en http://127.0.0.1:8000
+python main.py                 # chat interactivo por terminal
+python app.py                  # interfaz web en http://localhost:7860
+python mcp_server.py           # servidor MCP + API HTTP en http://localhost:8000
+python fastmcp/server.py       # idéntico al anterior
 ```
 
 En el chat de terminal escribe `/ayuda`, `/historial`, `/limpiar` o `/salir`.
-La conversación se conserva en memoria hasta que termina el proceso. La interfaz
-web también mantiene un historial separado por sesión del navegador; al borrar
-el chat, borra también esa memoria de conversación.
 
-### API HTTP del servidor FastMCP
+---
 
-El servidor escucha solo en `127.0.0.1:8000`. Expone `GET /`, `GET /tools`,
-`GET /history?session_id=...` y `POST /chat`; además registra las ocho
-herramientas como tools MCP bajo la ruta MCP predeterminada `/mcp`.
+## 🌐 Servidor MCP y API HTTP (sin autenticación)
 
-Ejemplo de chat:
+`mcp_server.py` escucha por defecto en `127.0.0.1:8000` (en despliegue,
+`HOST=0.0.0.0` y `PORT` lo inyecta el proveedor). Publica:
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/` | estado, conteos (`tools_total`, `resources_total`, `prompts_total`) y las APIs usadas |
+| `GET` | `/tools` | las **10 tools** con sus esquemas |
+| `GET` | `/resources` | los **6 resources** (URI, nombre, descripción) |
+| `GET` | `/prompts` | los **3 prompts** con sus argumentos |
+| `POST` | `/chat` | ejecuta el agente: `{"input", "session_id", "language"}` |
+| `GET` | `/history?session_id=x` | historial de la sesión |
+| `POST` | `/mcp` | **JSON-RPC del protocolo MCP** (tools, resources y prompts) |
+
+Respuestas JSON planas (`stateless` + `json_response`) y **CORS `*`**, para que
+cualquier cliente lo consuma: Claude, OpenCode, Cursor, ChatGPT Connectors,
+`curl`, scripts Python/JS… **sin API key, sin login, sin cabeceras de auth.**
 
 ```bash
-curl -X POST http://127.0.0.1:8000/chat \
+curl -s -X POST http://127.0.0.1:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"input":"¿Qué es el paracetamol?","session_id":"demo"}'
 ```
 
-Para seguir una conversación, reutiliza el mismo `session_id`. El historial
-vive en memoria y se pierde al detener el servidor. Para usar el protocolo MCP
-desde un cliente compatible, configura el endpoint `http://127.0.0.1:8000/mcp`.
+Para seguir una conversación, reutiliza el mismo `session_id`. El historial vive
+en memoria y se pierde al detener el servidor.
+
+Guía completa con ejemplos MCP y REST: [`docs/api.md`](docs/api.md).
+
+---
+
+## Las 10 tools
+
+| # | Tool | Entrada → Salida | Fuente |
+|---|---|---|---|
+| 1 | `analizar_sintomas` | Texto libre → causas posibles + OTC + alarmas | `data/sintomas.json` |
+| 2 | `buscar_medicamento` | Nombre comercial o activo → ficha completa | `data/medicamentos.json` + sugerencias difusas |
+| 3 | `calcular_dosis` | Medicamento + peso kg → mg por toma e intervalo | Regla mg/kg en Python |
+| 4 | `verificar_interaccion` | 2 fármacos → severidad + recomendación | `data/interacciones.json` |
+| 5 | `consultar_contraindicacion` | Fármaco + condición → 🔴🟡🟢 + alternativas | `data/contraindicaciones.json` |
+| 6 | `evaluar_urgencia` | Síntomas → 🟢 autocuidado / 🟡 médico / 🔴 112 | Reglas de triaje |
+| 7 | `buscar_farmacia` | Ubicación → farmacias (datos simulados) | `data/farmacias.json` |
+| 8 | `calcular` | Expresión → resultado | `numexpr` (parser seguro) |
+| 9 | `consultar_farmacovigilancia` | Fármaco → casos, reacciones frecuentes y desenlace | 🔵 **API internet #1:** openFDA/FAERS (NIH) |
+| 10 | `buscar_farmacia_real` | Ubicación → farmacias reales con distancia, dirección y horario | 🟢 **API internet #2:** OpenStreetMap (Nominatim + Overpass) |
+
+Las dos últimas son las que **consumen APIs de internet**; son públicas, no
+requieren autenticación y degradan con un aviso claro si la red falla
+(`buscar_farmacia_real` cae en la tool local `buscar_farmacia`).
+
+### Resources MCP (6)
+
+| URI | Contenido |
+|---|---|
+| `medicamentos://dataset` | `medicamentos.json` completo |
+| `sintomas://dataset` | `sintomas.json` completo |
+| `interacciones://dataset` | `interacciones.json` completo |
+| `contraindicaciones://dataset` | `contraindicaciones.json` completo |
+| `farmacias://dataset` | `farmacias.json` (muestra simulada) |
+| `orientador://guia` | Catálogo Markdown de tools/prompts/endpoints y de las APIs usadas |
+
+### Prompts MCP (3)
+
+| Prompt | Argumentos | Para qué |
+|---|---|---|
+| `farmacovigilancia_openfda` | `medicamento` | consume la API **openFDA** y explica cómo interpretar los reportes |
+| `farmacias_reales_osm` | `ubicacion` | consume las APIs de **OpenStreetMap** y lista farmacias cercanas |
+| `consulta_internet` | `medicamento`, `ubicacion` | encadena ambas APIs en una sola orientación |
+
+---
 
 ## 🚀 Despliegue
 
-El host y el puerto se leen de las variables de entorno `HOST` y `PORT`
-(por defecto `127.0.0.1`, `7860` para la web y `8000` para la API), así que
-el mismo código funciona en local y en remoto sin cambios.
+Todo está preparado para desplegar **sin tocar código**:
 
-### Local (VSCode)
+- **`render.yaml` en la raíz del repo** con `rootDir: langchain-tool` → Render lo
+  detecta automáticamente al crear un Blueprint (antes estaba dentro de la carpeta
+  y había que indicarlo a mano).
+- **`.python-version` = `3.14`** en la raíz → la misma versión de Python en local y
+  en Render (sin problemas de ruedas/wheels al instalar).
+- **`requirements.txt` con versiones fijadas** → build reproducible.
+- **`Dockerfile`** por si prefieres cualquier otra plataforma (Railway, Fly, AWS…).
 
-```bash
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # opcional: pon tu GOOGLE_API_KEY
-python app.py          # Gradio en http://127.0.0.1:7860
-python mcp_server.py   # API FastMCP en http://127.0.0.1:8000
-```
-
-### Exponer tu app local con NGrok
-
-Sin tocar código: el túnel da una URL pública `https://xxxx.ngrok.app`
-que apunta a tu máquina.
-
-1. Crea una cuenta gratis en https://ngrok.com y descarga el binario
-   (o `snap install ngrok` en Linux).
-2. Registra tu token (una vez): `ngrok config add-authtoken TU_TOKEN`
-3. Levanta la app y el túnel en dos terminales:
-
-```bash
-python app.py      # terminal 1
-ngrok http 7860    # terminal 2 -> URL pública de la interfaz Gradio
-```
-
-Para exponer la API FastMCP: `python mcp_server.py` + `ngrok http 8000`.
-Con NGrok gratis la URL cambia cada vez que reinicias el túnel.
-
-### Remoto: Render
-
-El repo incluye `render.yaml` (Blueprint) con **dos servicios web**:
+Pasos en Render: sube el repo a GitHub → https://dashboard.render.com →
+**New → Blueprint** → conecta el repo → crea los dos servicios → (opcional)
+añade el secret `GOOGLE_API_KEY`. **Ningún servicio pide credenciales para ser
+consumido.**
 
 | Servicio | Arranque | Qué expone |
 |---|---|---|
 | `orientador-web` | `python app.py` | Interfaz Gradio |
-| `orientador-mcp` | `python mcp_server.py` | API HTTP + endpoint MCP |
+| `orientador-mcp` | `python mcp_server.py` | API HTTP + servidor MCP |
 
-1. Sube el repo a GitHub.
-2. En https://render.com : **New → Blueprint** y conecta el repositorio.
-3. Render detecta el `render.yaml` y crea los dos servicios; solo tienes
-   que rellenar el secret `GOOGLE_API_KEY` en cada uno (Environment).
-4. Obtendrás una URL pública por servicio, p. ej.
-   `https://orientador-web.onrender.com` y `https://orientador-mcp.onrender.com`.
+Detalles, alternativas (Docker, NGrok, Cloudflare) y solución de problemas:
+[`docs/despliegue.md`](docs/despliegue.md).
 
-También puedes crearlos a mano (**New → Web Service** por cada uno):
-build command `pip install -r requirements.txt`, start command
-`python app.py` o `python mcp_server.py`, y variable de entorno
-`HOST=0.0.0.0`. Render inyecta `PORT` automáticamente y el código ya
-la respeta.
+> Plan gratuito: los servicios se duermen tras ~15 min sin tráfico; la primera
+> petición posterior tarda ~1 min en despertarlos.
 
-> Plan gratuito: los servicios se duermen tras ~15 min sin tráfico; la
-> primera petición posterior tarda ~1 min en despertarlos.
+---
 
-### Cloudflare (alternativa rápida, sin cuenta)
+## 🤖 Skill para agentes
 
-Túnel instantáneo equivalente a NGrok, sobre la red de Cloudflare:
+[`skills/orientador-medicamentos/SKILL.md`](../skills/orientador-medicamentos/SKILL.md)
+define cuándo y cómo un agente debe usar este servidor (endpoint, tools, prompts,
+resources, reglas de seguridad y disclaimer). Está enlazada en
+`.opencode/skills/` y `.claude/skills/`, así que OpenCode y Claude Code la
+descubren automáticamente al trabajar dentro del repo.
 
-```bash
-# Descarga cloudflared: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-cloudflared tunnel --url http://localhost:7860
-```
-
-## Las 8 tools y cómo funcionan
-
-| Tool | Entrada → Salida | Mecanismo |
-|---|---|---|
-| `analizar_sintomas` | Texto libre → causas posibles + OTC + alarmas | Coincidencia de palabras clave en `sintomas.json` (normalizado sin tildes) |
-| `buscar_medicamento` | Nombre comercial o activo → ficha completa | Búsqueda por alias + sugerencias difusas (`difflib`) si no existe |
-| `calcular_dosis` | Medicamento + peso kg → mg por toma e intervalo | Regla mg/kg en Python (paracetamol 15 mg/kg c/6h, ibuprofeno 10 mg/kg c/8h) |
-| `verificar_interaccion` | 2 fármacos → severidad + recomendación | Cruce de parejas (orden indiferente) en `interacciones.json` |
-| `consultar_contraindicacion` | Fármaco + condición → 🔴🟡🟢 + alternativas | Cruce contra `contraindicaciones.json` + advertencias de la ficha |
-| `evaluar_urgencia` | Síntomas → 🟢 autocuidado / 🟡 médico / 🔴 112 | Reglas de triaje por palabras de alarma |
-| `buscar_farmacia` | Ubicación → farmacias (filtro de guardia) | Filtrado en `farmacias.json` (datos simulados) |
-| `calcular` | Expresión → resultado | `numexpr` (parser seguro, sin `eval`) |
+---
 
 ## Seguridad
 
 - El system prompt obliga a: orientación general (no diagnósticos ni recetas),
   no prescribir antibióticos ni fármacos con receta, derivar al 112 ante alarmas
   y cerrar cada respuesta con el disclaimer.
-- Los datasets son de muestra con fines educativos: verifica siempre con el
-  prospecto, tu médico o farmacéutico.
-- La búsqueda de farmacias usa ubicaciones de muestra, no disponibilidad en vivo.
+- Los endpoints son abiertos **a propósito** (requisito: sin autenticación): no
+  exponen datos personales, solo datasets educativos y APIs públicas. No coloques
+  secretos en el código; `GOOGLE_API_KEY` va en `.env` o en el gestor de secretos.
+- Los datos de las APIs externas son de referencia: FAERS son notificaciones
+  espontáneas y OpenStreetMap es colaborativo; conviene advertirlo siempre.
+
+## 📚 Documentación
+
+- [`docs/api.md`](docs/api.md) — endpoints HTTP y protocolo MCP (tools, resources, prompts).
+- [`docs/despliegue.md`](docs/despliegue.md) — Render, Docker, túneles y versiones.
+- [`docs/arquitectura.md`](docs/arquitectura.md) — arquitectura hexagonal y flujo de datos.
+- [`../coding-assistance/`](../coding-assistance/README.md) — trazabilidad del desarrollo con IA.
 
 ## Ampliar
 
 - **Más medicamentos/síntomas**: añade entradas a los JSON (sin tocar código).
-- **Datos reales**: la tool `buscar_medicamento` puede extenderse consultando la
-  API pública CIMA de la AEMPS (https://cima.aemps.es/cima/rest/medicamentos).
+- **Más APIs**: añade una tool en `tools.py` siguiendo el patrón de
+  `consultar_farmacovigilancia` y regístrala en `TOOLS`.
 - **Memoria persistente**: sustituye el dict de `agent.py` por Redis/Postgres.
