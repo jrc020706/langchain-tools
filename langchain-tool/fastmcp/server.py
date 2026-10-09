@@ -8,6 +8,7 @@ from fastmcp import FastMCP
 from starlette.responses import JSONResponse
 from starlette.requests import Request
 
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -178,18 +179,26 @@ def run_server() -> None:
     print(f"Tools registradas: {_first} y {len(_descs)-1} más" if _descs else "Tools: 0")
     print()
     
+    # HOST/PORT desde el entorno:
+    # - Local: por defecto 127.0.0.1:8000 (no hace falta configurar nada).
+    # - Despliegue (Render/Docker): HOST=0.0.0.0 y PORT lo inyecta Render.
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+
     print("Endpoints disponibles:")
     print("  GET  /                  -> estado del servidor")
     print("  GET  /tools             -> listar tools disponibles")
     print("  POST /chat  -> ejecutar agente con input")
     print("  GET  /history?session_id=x -> obtener historial")
     print()
+    print(f"Escuchando en: http://{host}:{port}")
+    print()
     print("Arquitectura: Hexagonal (Puertos y Adaptadores)")
     print("Dependencias invertidas: dominio -> puertos -> adaptadores")
     print("=" * 70)
-    
+
     # Run the server
-    uvicorn.run(mcp.http_app, host="127.0.0.1", port=8000)
+    uvicorn.run(mcp.http_app, host=host, port=port)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import gradio as gr
 from pathlib import Path
 
 # Agregar el directorio actual al path
+import os
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -122,15 +123,21 @@ def launch_app():
         examples=EXAMPLES,
     )
     
+    # HOST/PORT desde el entorno:
+    # - Local: por defecto 127.0.0.1:7860 (no hace falta configurar nada).
+    # - Despliegue (Render/Docker/WSL): HOST=0.0.0.0 y PORT lo inyecta Render.
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "7860"))
+
     print("=" * 70)
     print("🚀 Iniciando interfaz web...")
     print("=" * 70)
     print()
     print(f"Modo LLM: {'Gemini real' if 'Fake' not in type(_chat_use_case._llm_port).__name__ else 'simulado'}")
-    print(f"Accede en: http://127.0.0.1:7860")
+    print(f"Accede en: http://{host}:{port}")
     print("=" * 70)
-    
-    demo.launch(server_name="127.0.0.1", server_port=7860)
+
+    demo.launch(server_name=host, server_port=port)
 
 
 if __name__ == "__main__":
