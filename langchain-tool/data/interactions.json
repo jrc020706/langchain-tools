@@ -1,0 +1,184 @@
+[
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "warfarina",
+    "severity": "grave",
+    "description": "Los AINE aumentan el riesgo de sangrado gastrointestinal y desplazan a la warfarina de proteínas plasmáticas, elevando el INR",
+    "recommendation": "Evitar la combinación. Si necesita analgesia, paracetamol a dosis bajas es más seguro. Si es imprescindible, solo bajo supervisión médica con controles de INR"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "ácido acetilsalicílico",
+    "severity": "moderada",
+    "description": "El ibuprofeno puede bloquear el efecto antiagregante cardioprotector de la aspirina a dosis bajas y suma riesgo de sangrado digestivo",
+    "recommendation": "Si toma aspirina 100 mg por el corazón, tomar el ibuprofeno al menos 8 h después de la aspirina o usar paracetamol. Consultar al médico"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "enalapril",
+    "severity": "moderada",
+    "description": "Los AINE reducen el efecto antihipertensivo de los IECA y juntos aumentan el riesgo de daño renal e hiperpotasemia",
+    "recommendation": "Evitar uso prolongado. Vigilar tensión arterial y función renal. Preferir paracetamol para dolor ocasional"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "losartán",
+    "severity": "moderada",
+    "description": "Los AINE reducen el efecto de los ARA2 y la combinación eleva el riesgo de insuficiencia renal e hiperpotasemia",
+    "recommendation": "Evitar uso prolongado. Vigilar tensión y función renal. Preferir paracetamol"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "alcohol",
+    "severity": "moderada",
+    "description": "El alcohol potencia el riesgo de irritación gástrica, úlcera y sangrado digestivo de los AINE",
+    "recommendation": "Evitar el alcohol mientras tome ibuprofeno, especialmente en ayunas o con antecedentes de gastritis"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "sertralina",
+    "severity": "moderada",
+    "description": "Los ISRS (sertralina, escitalopram) más AINE aumentan el riesgo de sangrado digestivo",
+    "recommendation": "Usar la dosis mínima el menor tiempo posible, tomar con comida y avisar si hay heces negras o vómitos con sangre"
+  },
+  {
+    "drug_a": "ibuprofeno",
+    "drug_b": "metformina",
+    "severity": "leve",
+    "description": "El uso prolongado de AINE puede afectar la función renal, lo que aumenta el riesgo de acumulación de metformina",
+    "recommendation": "Uso ocasional sin problema en riñones sanos. Evitar tratamientos largos sin control médico"
+  },
+  {
+    "drug_a": "paracetamol",
+    "drug_b": "warfarina",
+    "severity": "moderada",
+    "description": "El paracetamol en dosis altas (> 2 g/día) o uso prolongado puede elevar el INR y el riesgo de sangrado",
+    "recommendation": "A dosis bajas y uso corto es el analgésico más seguro con warfarina, pero controlar el INR si se usa varios días"
+  },
+  {
+    "drug_a": "paracetamol",
+    "drug_b": "alcohol",
+    "severity": "moderada",
+    "description": "El consumo crónico o excesivo de alcohol aumenta el riesgo de daño hepático por paracetamol, incluso a dosis normales",
+    "recommendation": "No superar 2 g/día si bebe alcohol habitualmente y evitar el alcohol los días que lo tome"
+  },
+  {
+    "drug_a": "omeprazol",
+    "drug_b": "clopidogrel",
+    "severity": "grave",
+    "description": "El omeprazol inhibe el CYP2C19 y reduce la activación del clopidogrel, disminuyendo su protección cardiovascular",
+    "recommendation": "Evitar la combinación. Alternativas gástricas: pantoprazol o antiácidos. Decisión siempre con el cardiólogo"
+  },
+  {
+    "drug_a": "omeprazol",
+    "drug_b": "diazepam",
+    "severity": "leve",
+    "description": "El omeprazol puede ralentizar la eliminación del diazepam, prolongando su sedación",
+    "recommendation": "Vigilar somnolencia excesiva. Normalmente no requiere cambio salvo dosis altas o ancianos"
+  },
+  {
+    "drug_a": "amoxicilina",
+    "drug_b": "warfarina",
+    "severity": "moderada",
+    "description": "Los antibióticos alteran la flora intestinal (fuente de vitamina K) y pueden elevar el INR",
+    "recommendation": "Control de INR a los 3-5 días de iniciar el antibiótico y al terminarlo"
+  },
+  {
+    "drug_a": "amoxicilina",
+    "drug_b": "anticonceptivos orales",
+    "severity": "leve",
+    "description": "Existe un riesgo teórico de reducir la eficacia anticonceptiva por alteración de la flora intestinal, aunque la evidencia es débil",
+    "recommendation": "Por precaución, usar método barrera adicional durante el tratamiento y 7 días después"
+  },
+  {
+    "drug_a": "azitromicina",
+    "drug_b": "warfarina",
+    "severity": "moderada",
+    "description": "La azitromicina puede potenciar el efecto anticoagulante y elevar el INR",
+    "recommendation": "Control de INR durante el tratamiento"
+  },
+  {
+    "drug_a": "atorvastatina",
+    "drug_b": "zumo de pomelo",
+    "severity": "moderada",
+    "description": "El pomelo inhibe el CYP3A4 y eleva los niveles de estatina, aumentando el riesgo de dolor muscular y rabdomiólisis",
+    "recommendation": "Evitar grandes cantidades de pomelo o zumo. Otras frutas cítricas no tienen este efecto"
+  },
+  {
+    "drug_a": "atorvastatina",
+    "drug_b": "claritromicina",
+    "severity": "grave",
+    "description": "La claritromicina eleva mucho los niveles de estatina: riesgo de rabdomiólisis",
+    "recommendation": "Suspender la estatina durante el tratamiento con claritromicina o usar otro antibiótico. Decisión médica"
+  },
+  {
+    "drug_a": "diazepam",
+    "drug_b": "alcohol",
+    "severity": "grave",
+    "description": "Suma de depresión del sistema nervioso central: sedación profunda, depresión respiratoria, riesgo de coma",
+    "recommendation": "Prohibida la combinación. Cero alcohol durante el tratamiento con benzodiazepinas"
+  },
+  {
+    "drug_a": "diazepam",
+    "drug_b": "tramadol",
+    "severity": "grave",
+    "description": "Combinación de depresores centrales: riesgo de depresión respiratoria grave y sobredosis",
+    "recommendation": "Evitar. Solo bajo supervisión médica estrecha con dosis ajustadas"
+  },
+  {
+    "drug_a": "sertralina",
+    "drug_b": "tramadol",
+    "severity": "grave",
+    "description": "Riesgo de síndrome serotoninérgico (agitación, fiebre, rigidez, confusión) potencialmente mortal",
+    "recommendation": "Evitar la combinación. Si aparece agitación con fiebre y rigidez, urgencias inmediatas"
+  },
+  {
+    "drug_a": "sertralina",
+    "drug_b": "ibuprofeno",
+    "severity": "moderada",
+    "description": "ISRS + AINE: mayor riesgo de sangrado digestivo",
+    "recommendation": "Dosis mínima, con comida, poco tiempo. Avisar ante heces negras"
+  },
+  {
+    "drug_a": "metformina",
+    "drug_b": "alcohol",
+    "severity": "moderada",
+    "description": "El alcohol en exceso o en ayunas aumenta el riesgo de acidosis láctica e hipoglucemia con metformina",
+    "recommendation": "Evitar atracones de alcohol. Consumo moderado y siempre con comida"
+  },
+  {
+    "drug_a": "metformina",
+    "drug_b": "contraste yodado",
+    "severity": "moderada",
+    "description": "El contraste puede dañar el riñón de forma transitoria y favorecer acidosis láctica si se mantiene la metformina",
+    "recommendation": "Suspender la metformina el día de la prueba con contraste y 48 h después, hasta confirmar función renal normal"
+  },
+  {
+    "drug_a": "enalapril",
+    "drug_b": "espironolactona",
+    "severity": "moderada",
+    "description": "Ambos elevan el potasio: riesgo de hiperpotasemia grave (arritmias)",
+    "recommendation": "Solo con control analítico de potasio y función renal. Evitar suplementos de potasio y sustitutos de sal"
+  },
+  {
+    "drug_a": "warfarina",
+    "drug_b": "vitamina k",
+    "severity": "moderada",
+    "description": "La vitamina K (suplementos, verduras de hoja en exceso variable) antagoniza la warfarina y baja el INR",
+    "recommendation": "Dieta con vitamina K estable y constante, sin cambios bruscos. Avisar al médico ante cambios dietéticos"
+  },
+  {
+    "drug_a": "loratadina",
+    "drug_b": "alcohol",
+    "severity": "leve",
+    "description": "Aunque la loratadina apenas da sueño, el alcohol puede potenciar mareo o somnolencia en personas sensibles",
+    "recommendation": "Precaución al conducir. La combinación no es peligrosa pero conviene moderar el alcohol"
+  },
+  {
+    "drug_a": "salbutamol",
+    "drug_b": "propranolol",
+    "severity": "grave",
+    "description": "Los betabloqueantes no selectivos (propranolol) bloquean el efecto del salbutamol y pueden provocar broncoespasmo grave en asmáticos",
+    "recommendation": "Evitar betabloqueantes no selectivos en asma. Si necesita betabloqueante, usar cardioselectivo (atenolol, bisoprolol) con precaución"
+  }
+]

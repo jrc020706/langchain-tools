@@ -1,4 +1,4 @@
-"""Caso de uso: Ejecutar conversación con el agente de medicamentos (bilingüe EN/ES)."""
+"""Use case: run a medication guidance agent conversation (bilingual EN/ES)."""
 
 from __future__ import annotations
 

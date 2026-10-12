@@ -1,23 +1,24 @@
-# Blueprint de Render (raíz del repo): despliega los dos servicios del proyecto.
+# Render blueprint (repo root): deploys the project's two services.
 #
-#   orientador-web -> interfaz Gradio (app.py)         -> https://orientador-web.onrender.com
-#   orientador-mcp -> API HTTP + servidor MCP (mcp_server.py) -> https://orientador-mcp.onrender.com
+#   orientador-web -> Gradio web interface (app.py)             -> https://orientador-web.onrender.com
+#   orientador-mcp -> HTTP API + MCP server (mcp_server.py)     -> https://orientador-mcp.onrender.com
 #
-# `rootDir: langchain-tool` le indica a Render dónde está el código: los comandos
-# de build/arranque se ejecutan dentro de esa carpeta.
+# `rootDir: langchain-tool` tells Render where the code is: the build/start
+# commands run inside that folder.
 #
-# Uso:
-#   1. Sube este repo a GitHub.
-#   2. En https://dashboard.render.com -> New -> Blueprint -> conecta el repo.
-#      (Render detecta este render.yaml en la raíz del repositorio.)
-#   3. Render crea ambos servicios. Opcional: rellena el secret GOOGLE_API_KEY en
-#      cada servicio (Environment) para usar Gemini real. SIN API KEY todo funciona
-#      igual en modo demo simulado, así que el despliegue NO requiere autenticación.
-#   4. La versión de Python la fija el archivo `.python-version` de la raíz (3.14),
-#      la misma con la que está probado el proyecto.
+# Usage:
+#   1. Push this repo to GitHub.
+#   2. On https://dashboard.render.com -> New -> Blueprint -> connect the repo.
+#      (Render detects this render.yaml at the repository root.)
+#   3. Render creates both services. Optional: fill in the GOOGLE_API_KEY secret
+#      on each service (Environment) to use real Gemini. WITHOUT an API key
+#      everything still works in simulated demo mode, so the deployment
+#      REQUIRES NO authentication.
+#   4. The Python version is set by the root `.python-version` file (3.14),
+#      the same version the project is tested with.
 #
-# Nota: Render inyecta PORT automáticamente; solo hace falta HOST=0.0.0.0.
-# Ningún endpoint pide usuario/contraseña/API key: son abiertos (requisito del proyecto).
+# Note: Render injects PORT automatically; only HOST=0.0.0.0 is needed.
+# No endpoint asks for user/password/API key: they are open (project requirement).
 
 services:
   - type: web
@@ -34,7 +35,7 @@ services:
       - key: MODEL_NAME
         value: gemini-2.5-flash
       - key: GOOGLE_API_KEY
-        sync: false   # secret opcional: se rellena a mano en el dashboard de Render
+        sync: false   # optional secret: filled in manually on the Render dashboard
 
   - type: web
     name: orientador-mcp
@@ -50,4 +51,4 @@ services:
       - key: MODEL_NAME
         value: gemini-2.5-flash
       - key: GOOGLE_API_KEY
-        sync: false   # secret opcional: se rellena a mano en el dashboard de Render
+        sync: false   # optional secret: filled in manually on the Render dashboard

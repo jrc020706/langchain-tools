@@ -45,7 +45,7 @@ class GeminiLlmAdapter(LlmPort):
         from langchain_google_genai import ChatGoogleGenerativeAI
         
         google_key = os.getenv("GOOGLE_API_KEY", "").strip()
-        placeholder = "tu_api_key_de_google_aqui"
+        placeholder = "your_google_api_key_here"
         
         if google_key and google_key != placeholder:
             # Real mode
@@ -164,7 +164,7 @@ def create_llm_adapter(model_name: str = "gemini-2.5-flash",
     from dotenv import load_dotenv as _load_dotenv
     _load_dotenv()
     
-    placeholder = "tu_api_key_de_google_aqui"
+    placeholder = "your_google_api_key_here"
     google_key = _os.getenv("GOOGLE_API_KEY", "").strip()
     
     if use_real is None:

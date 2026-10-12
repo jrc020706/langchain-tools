@@ -1,0 +1,340 @@
+[
+  {
+    "condition": "embarazo",
+    "keywords": [
+      "embarazo",
+      "embarazada",
+      "gestación",
+      "gestacion",
+      "encinta"
+    ],
+    "description": "En el embarazo muchos fármacos están restringidos, sobre todo en el primer y tercer trimestre",
+    "avoid": [
+      "ibuprofeno",
+      "diclofenaco",
+      "ácido acetilsalicílico",
+      "enalapril",
+      "losartán",
+      "atorvastatina",
+      "warfarina",
+      "diazepam"
+    ],
+    "caution": [
+      "omeprazol",
+      "loperamida",
+      "melatonina",
+      "amoxicilina"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "loratadina",
+      "cetirizina"
+    ],
+    "note": "El paracetamol es el analgésico de elección. Los AINE están contraindicados en el 3er trimestre. IECA/ARA2, estatinas y warfarina están prohibidos. Ante cualquier duda, consultar al médico o farmacéutico"
+  },
+  {
+    "condition": "lactancia",
+    "keywords": [
+      "lactancia",
+      "amamantando",
+      "dando el pecho",
+      "lactando"
+    ],
+    "description": "Durante la lactancia pasan pequeñas cantidades del fármaco a la leche",
+    "avoid": [
+      "ácido acetilsalicílico",
+      "enalapril",
+      "losartán",
+      "atorvastatina",
+      "warfarina"
+    ],
+    "caution": [
+      "ibuprofeno",
+      "diazepam",
+      "loperamida",
+      "melatonina"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "loratadina",
+      "cetirizina",
+      "omeprazol",
+      "amoxicilina"
+    ],
+    "note": "Ibuprofeno a dosis bajas y corto plazo suele aceptarse. Evitar aspirina y sedantes. Tomar la dosis justo después de la toma del bebé reduce la exposición"
+  },
+  {
+    "condition": "menores de 12 años",
+    "keywords": [
+      "niño",
+      "niña",
+      "niños",
+      "hijo",
+      "hija",
+      "bebé",
+      "bebe",
+      "infantil",
+      "pediátrico",
+      "pediatrico",
+      "menor"
+    ],
+    "description": "En niños las dosis van por peso y algunos fármacos están prohibidos por edad",
+    "avoid": [
+      "ácido acetilsalicílico",
+      "diclofenaco",
+      "doxilamina"
+    ],
+    "caution": [
+      "ibuprofeno",
+      "loratadina",
+      "cetirizina",
+      "omeprazol",
+      "loperamida",
+      "dextrometorfano"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "suero fisiológico nasal",
+      "sales de rehidratación oral"
+    ],
+    "note": "Prohibida la aspirina en < 16 años (síndrome de Reye). Ibuprofeno solo a partir de 3-6 meses según presentación. En < 2 años casi todo requiere valoración pediátrica"
+  },
+  {
+    "condition": "hipertensión arterial",
+    "keywords": [
+      "hipertensión",
+      "hipertension",
+      "tensión alta",
+      "tension alta",
+      "presión alta",
+      "presion alta"
+    ],
+    "description": "Algunos fármacos suben la tensión o interfieren con los antihipertensivos",
+    "avoid": [
+      "ibuprofeno",
+      "diclofenaco",
+      "naproxeno",
+      "pseudoefedrina"
+    ],
+    "caution": [
+      "ácido acetilsalicílico",
+      "dextrometorfano"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "loratadina",
+      "omeprazol"
+    ],
+    "note": "Los AINE pueden subir la tensión y reducir el efecto de IECA/ARA2/diuréticos. Preferir paracetamol. Cuidado con antigripales con pseudoefedrina"
+  },
+  {
+    "condition": "úlcera o gastritis",
+    "keywords": [
+      "úlcera",
+      "ulcera",
+      "gastritis",
+      "estómago delicado",
+      "estomago delicado",
+      "ardor de estómago"
+    ],
+    "description": "Los AINE dañan la mucosa gástrica y pueden reactivar úlceras",
+    "avoid": [
+      "ibuprofeno",
+      "diclofenaco",
+      "ácido acetilsalicílico",
+      "naproxeno"
+    ],
+    "caution": [
+      "sertralina",
+      "corticoides"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "omeprazol",
+      "antiácidos"
+    ],
+    "note": "Preferir paracetamol. Si el AINE es imprescindible, asociar protector gástrico (omeprazol) y tomar con comida, bajo supervisión médica"
+  },
+  {
+    "condition": "insuficiencia renal",
+    "keywords": [
+      "riñón",
+      "rinon",
+      "renal",
+      "insuficiencia renal",
+      "diálisis",
+      "dialisis",
+      "creatinina"
+    ],
+    "description": "Muchos fármacos se eliminan por el riñón y los AINE pueden dañarlo",
+    "avoid": [
+      "ibuprofeno",
+      "diclofenaco",
+      "ácido acetilsalicílico"
+    ],
+    "caution": [
+      "metformina",
+      "enalapril",
+      "losartán",
+      "amoxicilina",
+      "paracetamol"
+    ],
+    "usually_safe": [],
+    "note": "Evitar AINE. Casi todos los fármacos requieren ajuste de dosis según filtrado glomerular: imprescindible supervisión médica"
+  },
+  {
+    "condition": "insuficiencia hepática",
+    "keywords": [
+      "hígado",
+      "higado",
+      "hepático",
+      "hepatico",
+      "hepatitis",
+      "cirrosis"
+    ],
+    "description": "El hígado metaboliza la mayoría de fármacos; el paracetamol es especialmente hepatotóxico en sobredosis",
+    "avoid": [
+      "paracetamol",
+      "atorvastatina",
+      "diclofenaco"
+    ],
+    "caution": [
+      "ibuprofeno",
+      "amoxicilina",
+      "omeprazol",
+      "diazepam",
+      "sertralina"
+    ],
+    "usually_safe": [],
+    "note": "Reducir dosis de paracetamol (máx. 2 g/día) o evitarlo. Todo tratamiento crónico requiere control médico y analítico"
+  },
+  {
+    "condition": "asma",
+    "keywords": [
+      "asma",
+      "asmático",
+      "asmatico",
+      "broncoespasmo",
+      "silbidos al respirar"
+    ],
+    "description": "Aspirina y AINE pueden desencadenar crisis en asmáticos sensibles",
+    "avoid": [
+      "ácido acetilsalicílico",
+      "ibuprofeno",
+      "diclofenaco"
+    ],
+    "caution": [
+      "propranolol",
+      "dextrometorfano"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "salbutamol",
+      "loratadina"
+    ],
+    "note": "El paracetamol es el analgésico más seguro en asma. Los asmáticos sensibles a AINE deben evitarlos por completo"
+  },
+  {
+    "condition": "diabetes",
+    "keywords": [
+      "diabetes",
+      "diabético",
+      "diabetico",
+      "azúcar alta",
+      "azucar alta",
+      "glucosa"
+    ],
+    "description": "Corticoides y algunos fármacos alteran la glucemia; cuidado con azúcares en jarabes",
+    "avoid": [
+      "corticoides sistémicos sin control",
+      "jarabes con azúcar"
+    ],
+    "caution": [
+      "ibuprofeno",
+      "salbutamol",
+      "sertralina"
+    ],
+    "usually_safe": [
+      "paracetamol",
+      "metformina",
+      "loratadina"
+    ],
+    "note": "Vigilar glucemia si se usan corticoides o salbutamol frecuente. Preferir presentaciones sin azúcar"
+  },
+  {
+    "condition": "anticoagulación",
+    "keywords": [
+      "anticoagulante",
+      "sintrom",
+      "warfarina",
+      "tomo anticoagulante",
+      "heparina",
+      "adalimumab"
+    ],
+    "description": "Con anticoagulantes cualquier fármaco que aumente el sangrado es peligroso",
+    "avoid": [
+      "ibuprofeno",
+      "diclofenaco",
+      "ácido acetilsalicílico",
+      "naproxeno"
+    ],
+    "caution": [
+      "paracetamol",
+      "amoxicilina",
+      "omeprazol",
+      "sertralina"
+    ],
+    "usually_safe": [],
+    "note": "Prohibidos AINE y aspirina sin supervisión. Paracetamol a dosis bajas es lo más seguro. Avisar al médico antes de cualquier fármaco nuevo y controlar INR"
+  },
+  {
+    "condition": "glaucoma",
+    "keywords": [
+      "glaucoma",
+      "tensión ocular",
+      "tension ocular"
+    ],
+    "description": "Anticolinérgicos y descongestionantes pueden elevar la presión intraocular",
+    "avoid": [
+      "pseudoefedrina",
+      "anticatarrales con anticolinérgicos",
+      "dimenhidrinato"
+    ],
+    "caution": [
+      "loratadina",
+      "cetirizina"
+    ],
+    "usually_safe": [
+      "paracetamol"
+    ],
+    "note": "Evitar descongestionantes nasales y anticatarrales con pseudoefedrina o antihistamínicos de primera generación"
+  },
+  {
+    "condition": "personas mayores",
+    "keywords": [
+      "mayor",
+      "anciano",
+      "abuelo",
+      "abuela",
+      "tercera edad",
+      "65 años",
+      "80 años"
+    ],
+    "description": "En > 65 años hay más sensibilidad a sedantes, AINE y riesgo de caídas",
+    "avoid": [
+      "diazepam",
+      "doxilamina",
+      "diclofenaco"
+    ],
+    "caution": [
+      "ibuprofeno",
+      "omeprazol",
+      "sertralina",
+      "loperamida"
+    ],
+    "usually_safe": [
+      "paracetamol"
+    ],
+    "note": "Preferir paracetamol. Evitar benzodiazepinas y sedantes (caídas, confusión). AINE solo corto plazo con protector gástrico"
+  }
+]

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Agente de orientación de medicamentos con LangChain + Gemini.
+Medication guidance agent with LangChain + Gemini.
 
-- Si hay GOOGLE_API_KEY en el entorno: usa ChatGoogleGenerativeAI real
-  con create_tool_calling_agent + AgentExecutor (loop real de agente:
-  el modelo decide qué tool usar, se ejecuta, y el resultado vuelve al modelo).
-- Si no hay key: usa FakeGemini, un LLM simulado que devuelve tool_calls
-  reales para que el AgentExecutor funcione igual en modo demo.
+- If GOOGLE_API_KEY is in the environment: uses real ChatGoogleGenerativeAI
+  with create_tool_calling_agent + AgentExecutor (a real agent loop:
+  the model decides which tool to use, it runs, and the result goes back
+  to the model).
+- If there is no key: uses FakeGemini, a simulated LLM that returns real
+  tool_calls so the AgentExecutor works the same way in demo mode.
 
-La memoria de conversación se gestiona por sesión con InMemoryChatMessageHistory.
+Conversation memory is managed per session with InMemoryChatMessageHistory.
 """
 
 import os
@@ -21,22 +22,22 @@ from langchain_core.runnables.base import Runnable
 from domain.session_history import SessionHistory
 try:
     from langchain.agents import AgentExecutor, create_tool_calling_agent
-except ImportError:  # LangChain >= 1.0: agentes en langchain-classic
+except ImportError:  # LangChain >= 1.0: agents live in langchain-classic
     from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 
-from tools import TOOLS, _norm, _buscar_principio_activo, SINTOMAS, MEDICAMENTOS
+from tools import TOOLS, _norm, SYMPTOMS, MEDICATIONS
 
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
-PLACEHOLDER = "tu_api_key_de_google_aqui"
+PLACEHOLDER = "your_google_api_key_here"
 USE_REAL_LLM = bool(GOOGLE_API_KEY and GOOGLE_API_KEY != PLACEHOLDER)
 
 # ---------------------------------------------------------------------------
-# Prompt del sistema (bilingüe EN/ES: responde en el idioma del usuario)
-# Fuente única: domain/prompts.py (fallback inline si el import falla)
+# System prompt (bilingual EN/ES: reply in the user's language)
+# Single source: domain/prompts.py (inline fallback if the import fails)
 # ---------------------------------------------------------------------------
 try:
     from domain.prompts import BILINGUAL_SYSTEM_PROMPT as SYSTEM_PROMPT
@@ -50,10 +51,10 @@ RULES:
    - Never mix languages in the same answer.
 2. You have tools for: symptom analysis, drug info sheets, pediatric dose calculation,
    drug interaction checks, contraindications, urgency triage, pharmacy search and math.
-   Two tools use public internet APIs (no credentials): `consultar_farmacovigilancia`
+   Two tools use public internet APIs (no credentials): `query_pharmacovigilance`
    (openFDA/FAERS adverse-event reports - use for reported side effects) and
-   `buscar_farmacia_real` (OpenStreetMap real pharmacies - use for actual pharmacies,
-   fall back to the local `buscar_farmacia` if the API is down).
+   `find_real_pharmacy` (OpenStreetMap real pharmacies - use for actual pharmacies,
+   fall back to the local `find_pharmacy` if the API is down).
    Use them whenever the user asks about symptoms, medicines, doses, interactions,
    contraindications, urgency or pharmacies. Base your answer on the tool results.
    Tool outputs may contain Spanish data (drug database is in Spanish): when the user
@@ -80,26 +81,26 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 # ---------------------------------------------------------------------------
-# LLM simulado (modo demo sin API key): devuelve tool_calls reales
+# Simulated LLM (demo mode without API key): returns real tool_calls
 # ---------------------------------------------------------------------------
-_MED_NOMBRES = sorted(
-    {_norm(m["principio_activo"]) for m in MEDICAMENTOS} |
-    {_norm(n) for m in MEDICAMENTOS for n in m.get("nombre_comercial", [])},
+_MED_NAMES = sorted(
+    {_norm(m["active_ingredient"]) for m in MEDICATIONS} |
+    {_norm(n) for m in MEDICATIONS for n in m.get("brand_names", [])},
     key=len, reverse=True,
 )
 
-def _detect_lang_local(texto: str) -> str:
+def _detect_lang_local(text: str) -> str:
     """Local bilingual detector (mirrors domain.i18n, no hard dependency)."""
-    low0 = (texto or "").lower()
+    low0 = (text or "").lower()
     if "reply in english" in low0:
         return "en"
     if "responde en espa" in low0:
         return "es"
     try:
         from domain.i18n import detect_language as _det
-        return _det(texto)
+        return _det(text)
     except Exception:
-        low = (texto or "").lower()
+        low = (text or "").lower()
         if any(c in low for c in ("¿", "¡", "ñ", "á", "é", "í", "ó", "ú")):
             return "es"
         en_words = {"the", "and", "with", "what", "how", "can", "dose",
@@ -125,108 +126,108 @@ _EN_TO_ES_FAKE = {
 
 
 def _q_matchable(q_norm: str) -> str:
-    """Expande la query normalizada con equivalentes ES para el matching."""
+    """Expands the normalized query with ES equivalents for matching."""
     extra = [es for en, es in _EN_TO_ES_FAKE.items() if en in q_norm]
     return q_norm + (" " + " ".join(extra) if extra else "")
 
 
-_PATRONES = [
-    ("evaluar_urgencia", ["112", "urgencia", "urgency", "emergency", "emergencia",
-                          "ahogo", "me ahogo", "asfixia", "choking",
-                          "no puedo respirar", "cuesta respirar", "dificultad para respirar",
-                          "falta el aire", "falta de aire",
-                          "i can't breathe", "i cant breathe", "can't breathe", "cannot breathe",
-                          "difficulty breathing", "shortness of breath",
-                          "dolor en el pecho", "dolor de pecho", "duele el pecho", "dolor toracico",
-                          "opresion en el pecho", "presion en el pecho", "dolor de corazon",
-                          "chest pain", "chest hurts", "my chest hurts", "pressure in chest",
-                          "desmayo", "perdida de conciencia", "convulsion", "convulsiones",
-                          "faint", "fainted", "loss of consciousness", "seizure", "seizures",
-                          "sangrado abundante", "no para de sangrar", "hemorragia",
-                          "heavy bleeding", "bleeding a lot", "hemorrhage",
-                          "ictus", "cara torcida", "no puedo hablar", "debilidad en un lado",
-                          "stroke", "face drooping", "cant speak", "cannot speak", "weakness on one side",
-                          "alergia grave", "anafilaxia", "hinchazon de lengua", "hinchazon de labios",
-                          "severe allergy", "anaphylaxis", "swollen tongue", "swollen lips",
-                          "quemadura extensa", "extensive burn",
-                          "intento de suicidio", "quiero morir", "sobredosis",
-                          "suicide attempt", "want to die", "overdose",
-                          "grave", "severe"]),
-    ("verificar_interaccion", ["interaccion", "interacción", "interaction", "combinar", "combine", "juntos",
-                               "together", "puedo tomar", "can i take", "mezclar", "mix", "compatible con",
-                               "compatible with"]),
-    ("calcular_dosis", ["dosis", "dose", "dosage", "cuanto le doy", "cuánto le doy", "how much", "mg por kg",
+_PATTERNS = [
+    ("assess_urgency", ["112", "urgencia", "urgency", "emergency", "emergencia",
+                        "ahogo", "me ahogo", "asfixia", "choking",
+                        "no puedo respirar", "cuesta respirar", "dificultad para respirar",
+                        "falta el aire", "falta de aire",
+                        "i can't breathe", "i cant breathe", "can't breathe", "cannot breathe",
+                        "difficulty breathing", "shortness of breath",
+                        "dolor en el pecho", "dolor de pecho", "duele el pecho", "dolor toracico",
+                        "opresion en el pecho", "presion en el pecho", "dolor de corazon",
+                        "chest pain", "chest hurts", "my chest hurts", "pressure in chest",
+                        "desmayo", "perdida de conciencia", "convulsion", "convulsiones",
+                        "faint", "fainted", "loss of consciousness", "seizure", "seizures",
+                        "sangrado abundante", "no para de sangrar", "hemorragia",
+                        "heavy bleeding", "bleeding a lot", "hemorrhage",
+                        "ictus", "cara torcida", "no puedo hablar", "debilidad en un lado",
+                        "stroke", "face drooping", "cant speak", "cannot speak", "weakness on one side",
+                        "alergia grave", "anafilaxia", "hinchazon de lengua", "hinchazon de labios",
+                        "severe allergy", "anaphylaxis", "swollen tongue", "swollen lips",
+                        "quemadura extensa", "extensive burn",
+                        "intento de suicidio", "quiero morir", "sobredosis",
+                        "suicide attempt", "want to die", "overdose",
+                        "grave", "severe"]),
+    ("check_interaction", ["interaccion", "interacción", "interaction", "combinar", "combine", "juntos",
+                           "together", "puedo tomar", "can i take", "mezclar", "mix", "compatible con",
+                           "compatible with"]),
+    ("calculate_dose", ["dosis", "dose", "dosage", "cuanto le doy", "cuánto le doy", "how much", "mg por kg",
                         "mg per kg", "pesa", "weighs", "weight", "peso", "jarabe", "syrup", "jeringa", "syringe"]),
-    ("consultar_contraindicacion", ["embarazo", "pregnancy", "pregnant", "embarazada", "lactancia", "breastfeeding",
-                                    "hipertension", "hypertension", "high blood pressure", "tension alta",
-                                    "diabetes", "asma", "asthma", "riñon", "kidney", "higado", "liver",
-                                    "ulcera", "ulcer", "gastritis", "niño", "child", "bebe", "baby",
-                                    "anciano", "elderly", "abuelo", "anticoagulante", "anticoagulant", "sintrom",
-                                    "warfarin", "warfarina", "contraindication"]),
-    ("buscar_farmacia_real", ["farmacia real", "farmacias reales", "real pharmacy",
-                               "real pharmacies", "nearest pharmacy", "closest pharmacy",
-                               "pharmacy near", "farmacia cerca", "farmacias cerca",
-                               "openstreetmap", "nominatim", "en el mapa", "on the map"]),
-    ("consultar_farmacovigilancia", ["farmacovigilancia", "pharmacovigilance", "openfda",
-                                     "faers", "efectos adversos", "reacciones adversas",
-                                     "adverse events", "adverse reactions", "side effects",
-                                     "notificaciones de reacciones", "reaction reports"]),
-    ("buscar_farmacia", ["farmacia", "pharmacy", "guardia", "on duty", "on-duty", "donde comprar",
-                         "dónde comprar", "where to buy", "24 hours", "24 horas"]),
-    ("calcular", []),  # se detecta por regex matemática
+    ("check_contraindication", ["embarazo", "pregnancy", "pregnant", "embarazada", "lactancia", "breastfeeding",
+                                "hipertension", "hypertension", "high blood pressure", "tension alta",
+                                "diabetes", "asma", "asthma", "riñon", "kidney", "higado", "liver",
+                                "ulcera", "ulcer", "gastritis", "niño", "child", "bebe", "baby",
+                                "anciano", "elderly", "abuelo", "anticoagulante", "anticoagulant", "sintrom",
+                                "warfarin", "warfarina", "contraindication"]),
+    ("find_real_pharmacy", ["farmacia real", "farmacias reales", "real pharmacy",
+                            "real pharmacies", "nearest pharmacy", "closest pharmacy",
+                            "pharmacy near", "farmacia cerca", "farmacias cerca",
+                            "openstreetmap", "nominatim", "en el mapa", "on the map"]),
+    ("query_pharmacovigilance", ["farmacovigilancia", "pharmacovigilance", "openfda",
+                                 "faers", "efectos adversos", "reacciones adversas",
+                                 "adverse events", "adverse reactions", "side effects",
+                                 "notificaciones de reacciones", "reaction reports"]),
+    ("find_pharmacy", ["farmacia", "pharmacy", "guardia", "on duty", "on-duty", "donde comprar",
+                       "dónde comprar", "where to buy", "24 hours", "24 horas"]),
+    ("calculate", []),  # detected by math regex
 ]
 
 
 class _FakeToolBinding(Runnable):
-    """Runnable que imita la salida de un LLM con function calling."""
+    """Runnable that mimics an LLM output with function calling."""
 
     def __init__(self, tools):
         self._tools = {t.name: t for t in tools}
-        self._llamada_n = 0
+        self._call_count = 0
 
     def invoke(self, input, config=None):
-        mensajes = input.to_messages() if hasattr(input, "to_messages") else input
+        messages = input.to_messages() if hasattr(input, "to_messages") else input
 
-        # Si ya hay resultados de tools en el scratchpad -> respuesta final
-        for msg in reversed(mensajes):
+        # If there are already tool results in the scratchpad -> final answer
+        for msg in reversed(messages):
             if isinstance(msg, ToolMessage):
-                self._llamada_n = 0
+                self._call_count = 0
                 return AIMessage(content=str(msg.content))
 
-        # Último mensaje del usuario
-        pregunta = ""
-        for msg in reversed(mensajes):
+        # Last user message
+        question = ""
+        for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
-                pregunta = msg.content or ""
+                question = msg.content or ""
                 break
-        q = _norm(pregunta)
+        q = _norm(question)
         qm = _q_matchable(q)
-        self._llamada_n += 1
+        self._call_count += 1
 
-        # 1) Expresión matemática pura -> calcular
-        if re.fullmatch(r"[\d\s+\-*/().%×÷,]+", pregunta.strip()) and re.search(r"\d", q):
-            return self._tool_call("calcular", {"expresion": pregunta.strip()})
+        # 1) Pure math expression -> calculate
+        if re.fullmatch(r"[\d\s+\-*/().%×÷,]+", question.strip()) and re.search(r"\d", q):
+            return self._tool_call("calculate", {"expression": question.strip()})
 
-        # 2) Patrones por palabras clave (ES/EN, con query expandida)
-        for nombre_tool, claves in _PATRONES:
-            if any(c in qm for c in claves):
-                args = self._args_para(nombre_tool, pregunta, qm)
+        # 2) Keyword patterns (ES/EN, with expanded query)
+        for tool_name, keys in _PATTERNS:
+            if any(c in qm for c in keys):
+                args = self._args_for(tool_name, question, qm)
                 if args is not None:
-                    return self._tool_call(nombre_tool, args)
+                    return self._tool_call(tool_name, args)
 
-        # 3) ¿Menciona un medicamento conocido? -> ficha (con alias EN normalizados)
-        for nombre_med in _MED_NOMBRES:
-            if len(nombre_med) >= 4 and nombre_med in qm:
-                return self._tool_call("buscar_medicamento", {"nombre": nombre_med})
+        # 3) Mentions a known medicine? -> card (with normalized EN aliases)
+        for med_name in _MED_NAMES:
+            if len(med_name) >= 4 and med_name in qm:
+                return self._tool_call("search_medication", {"name": med_name})
 
-        # 4) ¿Describe algún síntoma conocido? -> analizar_sintomas (ES/EN)
-        for s in SINTOMAS:
-            if any(kw in qm for kw in s["palabras_clave"]):
-                return self._tool_call("analizar_sintomas", {"descripcion": pregunta})
+        # 4) Describes a known symptom? -> analyze_symptoms (ES/EN)
+        for s in SYMPTOMS:
+            if any(kw in qm for kw in s["keywords"]):
+                return self._tool_call("analyze_symptoms", {"description": question})
 
-        # 5) Respuesta genérica final (bilingüe según idioma detectado)
-        self._llamada_n = 0
-        lang = _detect_lang_local(pregunta)
+        # 5) Generic final answer (bilingual, per detected language)
+        self._call_count = 0
+        lang = _detect_lang_local(question)
         if lang == "en":
             return AIMessage(content=(
                 "I'm a medication guidance assistant (demo mode, no API key). "
@@ -247,70 +248,72 @@ class _FakeToolBinding(Runnable):
             "⚠️ Orientación general, no sustituye al médico o farmacéutico."
         ))
 
-    def _tool_call(self, nombre, args):
-        self._llamada_n = 0
+    def _tool_call(self, name, args):
+        self._call_count = 0
         return AIMessage(content="", tool_calls=[{
-            "name": nombre, "args": args, "id": f"fake-{nombre}", "type": "tool_call",
+            "name": name, "args": args, "id": f"fake-{name}", "type": "tool_call",
         }])
 
-    def _args_para(self, nombre_tool, pregunta, q):
+    def _args_for(self, tool_name, question, q):
         # q here is already the EXPANDED query (qm). Keep original norm for EN check.
-        lang_q = _detect_lang_local(pregunta)
+        lang_q = _detect_lang_local(question)
         _es_to_en = {"ibuprofeno": "ibuprofen", "warfarina": "warfarin",
                      "acido acetilsalicilico": "aspirin"}
         def _to_lang(med_es: str) -> str:
             if lang_q == "en":
                 return _es_to_en.get(med_es, med_es)
             return med_es
-        if nombre_tool == "calcular":
-            return {"expresion": pregunta.strip(), "language": lang_q}
-        if nombre_tool == "analizar_sintomas":
-            return {"descripcion": pregunta, "language": lang_q}
-        if nombre_tool == "evaluar_urgencia":
-            return {"descripcion": pregunta, "language": lang_q}
-        if nombre_tool == "buscar_farmacia_real":
-            return {"ubicacion": pregunta, "language": lang_q}
-        if nombre_tool == "consultar_farmacovigilancia":
-            med = next((m for m in _MED_NOMBRES if len(m) >= 4 and m in q), None)
+        if tool_name == "calculate":
+            return {"expression": question.strip(), "language": lang_q}
+        if tool_name == "analyze_symptoms":
+            return {"description": question, "language": lang_q}
+        if tool_name == "assess_urgency":
+            return {"description": question, "language": lang_q}
+        if tool_name == "find_real_pharmacy":
+            return {"location": question, "language": lang_q}
+        if tool_name == "query_pharmacovigilance":
+            med = next((m for m in _MED_NAMES if len(m) >= 4 and m in q), None)
             if med:
-                return {"nombre": _to_lang(med), "language": lang_q}
+                return {"name": _to_lang(med), "language": lang_q}
             return None
-        if nombre_tool == "buscar_farmacia":
-            return {"ubicacion": pregunta, "language": lang_q}
-        if nombre_tool == "buscar_medicamento":
-            for nombre_med in _MED_NOMBRES:
-                if len(nombre_med) >= 4 and nombre_med in q:
-                    return {"nombre": _to_lang(nombre_med), "language": lang_q}
+        if tool_name == "find_pharmacy":
+            return {"location": question, "language": lang_q}
+        if tool_name == "search_medication":
+            for med_name in _MED_NAMES:
+                if len(med_name) >= 4 and med_name in q:
+                    return {"name": _to_lang(med_name), "language": lang_q}
             return None
-        if nombre_tool == "calcular_dosis":
-            med = next((m for m in _MED_NOMBRES if len(m) >= 4 and m in q), None)
+        if tool_name == "calculate_dose":
+            med = next((m for m in _MED_NAMES if len(m) >= 4 and m in q), None)
             # ES: "22 kg" / EN: "22 kg", "22kg", "48 lb" not supported -> kg only
-            peso = re.search(r"(\d+(?:[.,]\d+)?)\s*kg", q)
-            if med and peso:
-                return {"medicamento": _to_lang(med), "peso_kg": float(peso.group(1).replace(",", ".")), "language": lang_q}
+            weight = re.search(r"(\d+(?:[.,]\d+)?)\s*kg", q)
+            if med and weight:
+                return {"medication": _to_lang(med),
+                        "weight_kg": float(weight.group(1).replace(",", ".")),
+                        "language": lang_q}
             # EN fallback: "dose ... for 22 kg" already covered; "weight 22" without kg?
             return None
-        if nombre_tool == "verificar_interaccion":
-            encontrados = [m for m in _MED_NOMBRES if len(m) >= 4 and m in q]
+        if tool_name == "check_interaction":
+            found_meds = [m for m in _MED_NAMES if len(m) >= 4 and m in q]
             extras = []
             if "alcohol" in q:
                 extras.append("alcohol")
             if "pomelo" in q or "grapefruit" in q:
                 extras.append("grapefruit" if lang_q == "en" else "zumo de pomelo")
-            todos = [_to_lang(m) for m in encontrados] + extras
-            if len(todos) >= 2:
-                return {"medicamento_1": todos[0], "medicamento_2": todos[1], "language": lang_q}
+            drugs = [_to_lang(m) for m in found_meds] + extras
+            if len(drugs) >= 2:
+                return {"medication_1": drugs[0], "medication_2": drugs[1], "language": lang_q}
             return None
-        if nombre_tool == "consultar_contraindicacion":
-            med = next((m for m in _MED_NOMBRES if len(m) >= 4 and m in q), None)
+        if tool_name == "check_contraindication":
+            med = next((m for m in _MED_NAMES if len(m) >= 4 and m in q), None)
             if med:
-                return {"medicamento": _to_lang(med), "condicion": pregunta, "language": lang_q}
+                return {"medication": _to_lang(med), "condition": question, "language": lang_q}
             return None
         return None
 
 
 class FakeGemini:
-    """Imita ChatGoogleGenerativeAI lo justo para create_tool_calling_agent."""
+    """Mimics ChatGoogleGenerativeAI just enough for create_tool_calling_agent."""
 
     def __init__(self, model_name="gemini-2.5-flash", temperature=0.3):
         self.model_name = model_name
@@ -321,17 +324,17 @@ class FakeGemini:
 
 
 # ---------------------------------------------------------------------------
-# Construcción del agente
+# Agent construction
 # ---------------------------------------------------------------------------
 if USE_REAL_LLM:
     from langchain_google_genai import ChatGoogleGenerativeAI
     llm = ChatGoogleGenerativeAI(
         model=MODEL_NAME, google_api_key=GOOGLE_API_KEY, temperature=0.3,
     )
-    print(f"✅ Usando Gemini real: {MODEL_NAME}")
+    print(f"✅ Using real Gemini: {MODEL_NAME}")
 else:
     llm = FakeGemini(model_name=MODEL_NAME)
-    print("🛠️  Modo simulado (sin GOOGLE_API_KEY). Consigue una gratis en https://aistudio.google.com")
+    print("🛠️  Simulated mode (no GOOGLE_API_KEY). Get a free one at https://aistudio.google.com")
 
 agent = create_tool_calling_agent(llm, TOOLS, prompt)
 executor = AgentExecutor(
@@ -340,7 +343,7 @@ executor = AgentExecutor(
 )
 
 # ---------------------------------------------------------------------------
-# Memoria por sesión
+# Per-session memory
 # ---------------------------------------------------------------------------
 _session_history: dict[str, SessionHistory] = {}
 
@@ -352,10 +355,11 @@ def get_session_history(session_id: str) -> SessionHistory:
 
 
 def run_agent(user_input: str, session_id: str = "default_session", language: str | None = None) -> str:
-    """Ejecuta el agente con memoria de sesión y devuelve la respuesta final.
+    """Runs the agent with session memory and returns the final answer.
 
-    Bilingüe EN/ES: si `language` es None se autodetecta desde `user_input`
-    ('en' o 'es'); la respuesta siempre termina con el disclaimer en ese idioma.
+    Bilingual EN/ES: if `language` is None it is auto-detected from
+    `user_input` ('en' or 'es'); the answer always ends with the disclaimer
+    in that language.
     """
     try:
         from domain.i18n import detect_language as _det, ensure_disclaimer as _ensure
@@ -363,8 +367,8 @@ def run_agent(user_input: str, session_id: str = "default_session", language: st
     except Exception:
         lang = language if language in ("es", "en") else "es"
     history = get_session_history(session_id)
-    # Si se fuerza un idioma distinto al detectado, añadir pista explícita
-    # para que tanto el LLM real como el fake de demo respondan en ese idioma.
+    # If a language different from the detected one is forced, add an explicit
+    # hint so that both the real LLM and the demo fake answer in that language.
     try:
         from domain.i18n import detect_language as _det2
         _detected = _det2(user_input)
@@ -378,12 +382,12 @@ def run_agent(user_input: str, session_id: str = "default_session", language: st
         "input": effective_input,
         "chat_history": history.messages,
     })
-    respuesta = result.get("output", "")
+    answer = result.get("output", "")
     try:
         from domain.i18n import ensure_disclaimer as _ensure2
-        respuesta = _ensure2(respuesta, lang)
+        answer = _ensure2(answer, lang)
     except Exception:
         pass
     history.add_user_message(user_input)
-    history.add_ai_message(respuesta)
-    return respuesta
+    history.add_ai_message(answer)
+    return answer

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""
-Interfaz web del agente de orientación de medicamentos usando arquitectura hexagonal.
+"""Web interface for the medication guidance agent using hexagonal architecture.
 
-Ejecutar:  python app.py   ->  abre http://localhost:7860
+Run:  python app.py   ->  opens http://localhost:7860
 
-La memoria de conversación la mantiene Gradio (el historial del chat se
-reenvía al agente en cada turno); el botón 🗑️ "Clear" la reinicia.
+The conversation memory is kept by Gradio (the chat history is re-sent to
+the agent on each turn); the 🗑️ "Clear" button resets it.
 
-Este módulo usa la arquitectura hexagonal: la capa de presentación (Gradio)
-solo depende del caso de uso ChatUseCase a través de sus puertos (ports),
-sin conocer detalles de Gemini, LangChain tools o memoria interna.
+This module uses hexagonal architecture: the presentation layer (Gradio)
+only depends on the ChatUseCase through its ports, without knowing about
+Gemini, LangChain tools or internal memory.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from __future__ import annotations
 import gradio as gr
 from pathlib import Path
 
-# Agregar el directorio actual al path
+# Add the current directory to the path
 import os
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
@@ -31,12 +30,12 @@ from adapters.tool_adapter import create_tool_adapter
 from adapters.memory_adapter import create_memory_adapter
 
 
-def crear_caso_uso() -> ChatUseCase:
+def create_use_case() -> ChatUseCase:
     """Factory function to create ChatUseCase with injected dependencies."""
     llm_adapter: LlmPort = create_llm_adapter()
     tool_adapter: ToolPort = create_tool_adapter()
     memory_adapter: MemoryPort = create_memory_adapter()
-    
+
     return ChatUseCase(
         llm_port=llm_adapter,
         tool_port=tool_adapter,
@@ -44,44 +43,41 @@ def crear_caso_uso() -> ChatUseCase:
     )
 
 
-# Crear el caso de uso una vez al iniciar la aplicación (singleton por proceso)
-_chat_use_case: ChatUseCase = crear_caso_uso()
+# Create the use case once at app start (per-process singleton)
+_chat_use_case: ChatUseCase = create_use_case()
 
 
-def responder(mensaje: str, historial: list, request: gr.Request) -> str:
-    """Convierte el historial de Grado a messages LangChain y ejecuta el caso de uso.
+def respond(message: str, history: list, request: gr.Request) -> str:
+    """Converts the Gradio history to LangChain messages and runs the use case.
 
-    Bilingüe EN/ES: detecta el idioma del mensaje y responde en ese idioma.
     Bilingual EN/ES: detects the message language and replies in that language.
+    Bilingüe EN/ES: detecta el idioma del mensaje y responde en ese idioma.
 
-    A diferencia de la versión anterior que llamaba directamente a executor.invoke(),
-    ahora usa el ChatUseCase hexagonal, lo que permite cambiar de LLM, tools o
-    capa de memoria sin tocar este código.
+    Unlike the previous version that called executor.invoke() directly, this
+    now uses the hexagonal ChatUseCase, which allows swapping the LLM, tools
+    or memory layer without touching this code.
 
     Args:
-        mensaje: Mensaje actual del usuario / Current user message
-        historial: Historial de turns del chat de Gradio
+        message: Current user message / Mensaje actual del usuario
+        history: List of Gradio chat turns
 
     Returns:
-        Respuesta del agente como string / Agent answer as string
+        Agent answer as string / Respuesta del agente como string
     """
     # Gradio supplies a per-browser session hash. Clearing the UI also clears
     # the corresponding in-memory conversation before the next turn.
     session_id = request.session_hash if request and request.session_hash else "web-default"
-    if not historial:
+    if not history:
         _chat_use_case.clear_session(session_id)
 
-    # ChatUseCase autodetecta el idioma (ES/EN) si no se fuerza.
-    result = _chat_use_case.execute(mensaje, session_id=session_id)
+    # ChatUseCase auto-detects the language (ES/EN) unless forced.
+    result = _chat_use_case.execute(message, session_id=session_id)
 
-    # Extraer la respuesta y formatear para Gradio
-    respuesta = result.get("output", "No he podido generar una respuesta. Inténtalo de nuevo. / I couldn't generate an answer. Please try again.")
-    
-    # Agregar mensajes al historial del caso de uso (para memoria sesión si se reusa)
-    # Nota: En Gradio típicamente cada petición es independiente, pero el caso de uso
-    # mantiene su propia memoria interna si es necesario
-    
-    return respuesta
+    # Extract the answer and format it for Gradio
+    answer = result.get("output", "No he podido generar una respuesta. Inténtalo de nuevo. / I couldn't generate an answer. Please try again.")
+
+    # Messages are persisted by the use case (per-session memory is kept there)
+    return answer
 
 
 TITLE = "💊 Orientador de Medicamentos / Medication Guide"
@@ -115,26 +111,26 @@ EXAMPLES = [
 
 
 def launch_app():
-    """Lanzar la interfaz Gradio."""
+    """Launch the Gradio interface."""
     demo = gr.ChatInterface(
-        fn=responder,
+        fn=respond,
         title=TITLE,
         description=DESCRIPTION,
         examples=EXAMPLES,
     )
-    
-    # HOST/PORT desde el entorno:
-    # - Local: por defecto 127.0.0.1:7860 (no hace falta configurar nada).
-    # - Despliegue (Render/Docker/WSL): HOST=0.0.0.0 y PORT lo inyecta Render.
+
+    # HOST/PORT from the environment:
+    # - Local: default 127.0.0.1:7860 (nothing to configure).
+    # - Deployment (Render/Docker/WSL): HOST=0.0.0.0 and PORT injected by Render.
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "7860"))
 
     print("=" * 70)
-    print("🚀 Iniciando interfaz web...")
+    print("🚀 Starting web interface...")
     print("=" * 70)
     print()
-    print(f"Modo LLM: {'Gemini real' if 'Fake' not in type(_chat_use_case._llm_port).__name__ else 'simulado'}")
-    print(f"Accede en: http://{host}:{port}")
+    print(f"LLM mode: {'real Gemini' if 'Fake' not in type(_chat_use_case._llm_port).__name__ else 'simulated'}")
+    print(f"Open at: http://{host}:{port}")
     print("=" * 70)
 
     demo.launch(server_name=host, server_port=port)

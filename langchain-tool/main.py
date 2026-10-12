@@ -15,8 +15,8 @@ from adapters.memory_adapter import create_memory_adapter
 
 
 def main() -> None:
-    print("💊 Orientador de Medicamentos — chat interactivo")
-    print("Escribe /ayuda para ver comandos o /salir para terminar.\n")
+    print("💊 Medication Advisor / Orientador de Medicamentos — interactive chat")
+    print("Type /help to see commands or /exit to quit.\n")
 
     llm = create_llm_adapter()
     memory = create_memory_adapter()
@@ -25,52 +25,52 @@ def main() -> None:
         tool_port=create_tool_adapter(),
         memory_port=memory,
     )
-    modo = "Gemini real" if "Fake" not in type(llm).__name__ else "simulado (demo)"
-    print(f"Modo LLM: {modo} | Modelo: {llm.get_model_name()}")
-    print("La memoria dura mientras este proceso siga abierto.\n")
+    mode = "real Gemini" if "Fake" not in type(llm).__name__ else "simulated (demo)"
+    print(f"LLM mode: {mode} | Model: {llm.get_model_name()}")
+    print("Memory lasts while this process stays open.\n")
 
     session_id = "terminal"
     try:
         while True:
             try:
-                mensaje = input("Tú: ").strip()
+                message = input("You: ").strip()
             except EOFError:
-                print("\nHasta luego.")
+                print("\nGoodbye.")
                 break
 
-            if not mensaje:
+            if not message:
                 continue
 
-            comando = mensaje.lower()
-            if comando in {"/salir", "/exit", "/quit"}:
-                print("Hasta luego.")
+            command = message.lower()
+            if command in {"/exit", "/quit", "/salir"}:
+                print("Goodbye.")
                 break
-            if comando in {"/ayuda", "/help"}:
-                print("Comandos: /ayuda, /historial, /limpiar, /salir")
-                print("También puedes escribir en español o inglés.\n")
+            if command in {"/help", "/ayuda"}:
+                print("Commands: /help, /history, /clear, /exit")
+                print("You can write in Spanish or English.\n")
                 continue
-            if comando in {"/historial", "/history"}:
-                historial = chat.get_history(session_id).get("messages", [])
-                if not historial:
-                    print("Todavía no hay mensajes.\n")
+            if command in {"/history", "/historial"}:
+                history = chat.get_history(session_id).get("messages", [])
+                if not history:
+                    print("No messages yet.\n")
                 else:
-                    for item in historial:
-                        rol = "Tú" if item.get("role") == "user" else "Agente"
-                        print(f"{rol}: {item.get('content', '')}")
+                    for item in history:
+                        role = "You" if item.get("role") == "user" else "Agent"
+                        print(f"{role}: {item.get('content', '')}")
                     print()
                 continue
-            if comando in {"/limpiar", "/clear"}:
+            if command in {"/clear", "/limpiar"}:
                 chat.clear_session(session_id)
-                print("Historial borrado.\n")
+                print("History cleared.\n")
                 continue
 
             try:
-                resultado = chat.execute(mensaje, session_id)
-                print(f"Agente: {resultado['output']}\n")
+                result = chat.execute(message, session_id)
+                print(f"Agent: {result['output']}\n")
             except Exception as error:
-                print(f"No se pudo procesar el mensaje: {error}\n")
+                print(f"Could not process the message: {error}\n")
     except KeyboardInterrupt:
-        print("\nHasta luego.")
+        print("\nGoodbye.")
 
 
 if __name__ == "__main__":

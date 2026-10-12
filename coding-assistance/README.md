@@ -1,86 +1,127 @@
-# coding-assistance — Trazabilidad del desarrollo asistido por IA
+# coding-assistance — Trace of AI-assisted development
 
-Esta carpeta documenta **qué agentes/modelos/herramientas de IA se usaron** para
-desarrollar el proyecto y **todos los prompts** enviados a un asistente de
-código, tal y como pide el enunciado.
+This folder documents **which AI agents/models/tools were used** to develop the
+project and **every prompt** sent to a coding assistant, as required by the
+assignment.
 
-> **Política de secretos:** aquí **no se guardan API keys, tokens, contraseñas ni
-> ningún otro secreto**. Cuando un prompt o una nota mencionan una variable como
-> `GOOGLE_API_KEY`, lo hacen únicamente como nombre de variable opcional, nunca
-> con su valor.
+> **Secrets policy:** no API keys, tokens, passwords or any other secret are
+> stored here. When a prompt or a note mentions a variable such as
+> `GOOGLE_API_KEY`, it does so only as the name of an optional variable, never
+> with its value.
 
 ---
 
-## 1. Agentes, modelos y herramientas utilizados
+## 1. Agents, models and tools used
 
-| Agente / herramienta | Modelo | Para qué se usó |
+| Agent / tool | Model | What it was used for |
 |---|---|---|
-| **OpenCode** (CLI de agentes de código) | `mimo-v2.6-flash-free` (proveedor: `opencode`) | Agente principal de la sesión: lectura del código, edición de `tools.py`, `fastmcp/server.py`, `agent.py`, `domain/prompts.py`, creación de ficheros (`render.yaml`, `.python-version`, `Dockerfile`, skills, documentación) y ejecución de pruebas |
-| **Herramienta `webfetch` (dentro de OpenCode)** | mismo modelo | Consulta de documentación externa para tomar decisiones de versión: *Render → Setting Your Python Version* y *Render → Blueprint YAML Reference*, y *OpenCode → Agent Skills* |
-| **Herramientas locales de OpenCode** (`read`, `edit`, `write`, `shell`, `grep`, `glob`) | mismo modelo | Exploración del repositorio, cambios puntuales y ejecución de comandos de verificación (servidor MCP, cliente MCP, APIs externas) |
-| **Skill `orientador-medicamentos`** (creada en esta sesión) | — | No es una herramienta de desarrollo, pero es el artefacto "skill para agentes" que exige el enunciado |
+| **OpenCode** (code-agent CLI) — session of **2026-10-09** | `mimo-v2.6-flash-free` (provider: `opencode`) | Main agent of that session: reading the code, editing `tools.py`, `fastmcp/server.py`, `agent.py`, `domain/prompts.py`, creating files (`render.yaml`, `.python-version`, `Dockerfile`, skills, documentation) and running tests |
+| **`webfetch` tool (inside OpenCode)** | same model | Querying external documentation for version decisions: *Render → Setting Your Python Version* and *Render → Blueprint YAML Reference*, and *OpenCode → Agent Skills* |
+| **OpenCode local tools** (`read`, `edit`, `write`, `shell`, `grep`, `glob`) | same model | Repository exploration, targeted edits and verification commands (MCP server, MCP client, external APIs) |
+| **OpenCode** (code-agent CLI) — session of **2026-10-12** | `z-ai/glm-5.3` — **GLM-5.3** (provider: `nvidia`) | Audit of the project against the acceptance criteria (counting tools/resources/prompts in the code, checking that `.env` is not versioned, probing the production URLs), completion of this log, and the **English translation of all code and documentation** |
+| **Skill `medication-advisor`** (created in the 2026-10-09 session, renamed in the 2026-10-12 translation session) | — | Not a development tool, but it is the "skill for agents" artifact required by the assignment |
 
-Modelo declarado por el harness: **MiMo-V2.6-Flash Free**, provider **opencode**,
-id `mimo-v2.6-flash-free`.
+Session of **2026-10-09** — model declared by the harness: **MiMo-V2.6-Flash Free**,
+provider **opencode**, id `mimo-v2.6-flash-free`.
+Session of **2026-10-12** — model declared by the harness: **GLM-5.3**,
+provider **nvidia**, id `z-ai/glm-5.3`.
+Earlier sessions (2026-10-06 → 2026-10-08) were developed with AI assistance whose
+agent/model was not recorded at the time (see §3).
 
-### Qué se hizo **sin** asistencia de IA
+### What was done **without** AI assistance
 
-- Los prompts enviados al propio agente desplegado (`POST /chat`, tools
-  `consultar_farmacovigilancia` y `buscar_farmacia_real`) son **pruebas de la
-  aplicación**, no prompts a un asistente de código, y por eso no se registran aquí.
+- The prompts sent to the project's own agent (`POST /chat` on the local server,
+  tools `query_pharmacovigilance` and `find_real_pharmacy`) are **tests of the
+  application**, not prompts to a coding assistant, and are therefore not
+  logged here.
 
 ---
 
-## 2. Registro de prompts: `prompts.json`
+## 2. Prompt log: `prompts.json`
 
-[`prompts.json`](prompts.json) contiene un array `prompts` con **todas las
-prompts** enviadas al asistente de código durante el desarrollo. Cada entrada
-incluye como mínimo:
+[`prompts.json`](prompts.json) contains a `prompts` array with **every prompt**
+sent to the coding assistant during development. Each entry includes at least:
 
-| Campo | Descripción |
+| Field | Description |
 |---|---|
-| `timestamp` | ISO 8601 con huso horario (`-05:00`) |
-| `agente_o_herramienta` | Agente o herramienta de IA que recibió el prompt |
-| `proveedor` / `modelo` | Proveedor y modelo usados |
-| `prompt` | Texto literal del prompt (sin secretos) |
-| `purpose` | Para qué se envió |
-| `artifacts` | Archivos resultantes o afectados |
+| `timestamp` | ISO 8601 with timezone (`-05:00`) |
+| `reconstruido` | Optional: `true` only on entries reconstructed after the fact from the git history (see §3); absent on entries recorded at the time |
+| `agente_o_herramienta` | Agent or AI tool that received the prompt |
+| `proveedor` / `modelo` | Provider and model used |
+| `prompt` | Literal text of the prompt (no secrets) |
+| `purpose` | Why it was sent |
+| `artifacts` | Resulting or affected files |
 
-### Cómo mantenerlo
+### How to maintain it
 
-1. Añade una entrada nueva por **cada** prompt enviado a un asistente de código.
-2. No pegues en el prompt valores de claves: sustitúyelos por el nombre de la
-   variable (`GOOGLE_API_KEY`, `TU_TOKEN`, …).
-3. Mantén el mismo orden de campos para facilitar la revisión.
-
----
-
-## 3. Cobertura y limitaciones
-
-- El registro cubre la sesión del **2026-10-09**, en la que se alineó el proyecto
-  con el enunciado (resources, tools de API, prompts MCP, despliegue, skill y
-  documentación).
-- Los commits anteriores (`2026-10-07` → `2026-10-08`: arquitectura hexagonal,
-  soporte bilingüe y blueprint de Render) también se desarrollaron con asistencia
-  de IA, pero **sus prompts no se guardaron en el momento**: queda anotado en el
-  campo `notas` de `prompts.json` para no dar a entender que el histórico está
-  completo.
+1. Add a new entry for **every** prompt sent to a coding assistant.
+2. Never paste key values into a prompt: replace them with the variable name
+   (`GOOGLE_API_KEY`, `TU_TOKEN`, …).
+3. Keep the same field order to make review easier.
+4. If you recover a prompt after the fact that was not recorded at the time,
+   mark the entry with `"reconstruido": true` and note the associated commit in
+   its `purpose`, to distinguish it from literal transcripts.
 
 ---
 
-## 4. Verificaciones realizadas en esta sesión
+## 3. Coverage and limitations
 
-Para asegurar que lo entregado funciona al desplegar:
+- The log covers **all development sessions** of the project
+  (2026-10-06 → 2026-10-12) and grows with every new prompt.
+- **Literal transcripts** (recorded at the time): the session of
+  **2026-10-09** (alignment with the assignment and the two external
+  documentation queries via `webfetch`) and the sessions of **2026-10-12**
+  (audit against the acceptance criteria, completion of this log, and the
+  English translation of code and documentation).
+- **After-the-fact reconstructions** (marked with `"reconstruido": true`): the
+  prompts of the sessions from **2026-10-06 to 2026-10-08** (initial skeleton,
+  agent with tools and datasets, hexagonal architecture, bilingual support,
+  sessions and Render blueprint) and the tests prompt of **2026-10-09** **were
+  not saved at the time**. They were reconstructed from the git history (commit
+  date and message + modified files, verified with `git show --stat`): the text
+  is a faithful paraphrase of the intent —not a literal transcript—, the
+  agent/model of those sessions is "not recorded" and the timestamp is
+  approximate (immediately before the resulting commit). Each entry notes its
+  associated commit in its `purpose`.
 
-| Verificación | Resultado |
+---
+
+## 4. Verifications performed
+
+### Session of 2026-10-09 (alignment with the assignment)
+
+To ensure what is delivered works when deployed:
+
+| Verification | Result |
 |---|---|
-| Instalación y arranque de `mcp_server.py` | ✅ servidor en `127.0.0.1:8010` |
+| Install and boot of `mcp_server.py` | ✅ server on `127.0.0.1:8010` |
 | `GET /` | ✅ `tools_total: 10`, `resources_total: 6`, `prompts_total: 3` |
-| `GET /tools`, `GET /resources`, `GET /prompts` | ✅ listan 10 / 6 / 3 elementos |
-| `POST /mcp` con el cliente MCP oficial (`initialize`, `list_tools`, `list_resources`, `list_prompts`, `read_resource`, `get_prompt`, `call_tool`) | ✅ todo responde |
-| Tool `consultar_farmacovigilancia` (openFDA) | ✅ devuelve total, muestra y reacciones (ES y EN) |
-| Tool `buscar_farmacia_real` (OpenStreetMap) | ✅ farmacias reales a <1 km de "Calle Mayor 1, Madrid" (3,6 s) y "Barcelona" (6,5 s), con reparto del presupuesto (`OVERPASS_MAX`/`NOMINATIM_MAX`) y *fallbacks* si Overpass se satura |
-| Presupuestos de tiempo por tool | ✅ ninguna tool cuelga el chat: ≤22 s (API) y ≤20 s (geografía) aunque fallen todas las llamadas |
-| `POST /chat` con el agente | ✅ responde usando las tools de API |
+| `GET /tools`, `GET /resources`, `GET /prompts` | ✅ list 10 / 6 / 3 items |
+| `POST /mcp` with the official MCP client (`initialize`, `list_tools`, `list_resources`, `list_prompts`, `read_resource`, `get_prompt`, `call_tool`) | ✅ everything responds |
+| Tool `query_pharmacovigilance` (openFDA) | ✅ returns total, sample and reactions (ES and EN) |
+| Tool `find_real_pharmacy` (OpenStreetMap) | ✅ real pharmacies <1 km from "Calle Mayor 1, Madrid" (3.6 s) and "Barcelona" (6.5 s), with budget splitting (`OVERPASS_MAX`/`NOMINATIM_MAX`) and *fallbacks* when Overpass is saturated |
+| Per-tool time budgets | ✅ no tool hangs the chat: ≤22 s (API) and ≤20 s (geography) even if every call fails |
+| `POST /chat` with the agent | ✅ answers using the API tools |
 | CORS | ✅ `access-control-allow-origin: *` |
-| Versiones (Python + `requirements.txt` fijados) | ✅ alineadas con el despliegue |
+| Versions (Python + pinned `requirements.txt`) | ✅ aligned with the deployment |
+
+### Session of 2026-10-12 (audit against the acceptance criteria)
+
+| Verification | Result |
+|---|---|
+| Counts in the code (`@tool`, `@mcp.resource`, `@mcp.prompt`) | ✅ 10 tools / 6 resources / 3 MCP prompts |
+| `.env` versioned in git | ✅ not tracked (only `.env.example`); no secrets in the repo |
+| Render production URLs (`orientador-mcp.onrender.com`, `orientador-web.onrender.com`) | ❌ return `404` with header `x-render-routing: no-server` → **no deployed service**; deployment criterion pending |
+| Sync with GitHub (`github.com/jrc020706/langchain-tools`) | ✅ local `main` and remote on the same commit, public repo |
+
+### Session of 2026-10-12 (English translation of code and documentation)
+
+| Verification | Result |
+|---|---|
+| `python3 -m py_compile` on every project `.py` file | ✅ all compile |
+| `pytest langchain-tool/tests/basic_test.py` | ✅ 3 passed (tests renamed to English) |
+| Boot of `mcp_server.py` + `GET /`, `/tools`, `/resources`, `/prompts` | ✅ 10 / 6 / 3 with English names and English JSON keys |
+| `POST /chat` in Spanish and in English | ✅ auto-detects `es`/`en` and answers in the same language (bilingual product kept) |
+| `POST /mcp` `initialize` | ✅ `serverInfo.name: MedicationAdvisorHexagonal`, English `instructions` |
+| Skill renamed to `skills/medication-advisor` with symlinks updated in `.opencode/skills/` and `.claude/skills/` | ✅ loads with `name: medication-advisor` |
+| Grep for old Spanish identifiers in `.py` files | ✅ no leftovers (Spanish remains only in bilingual docstrings, product strings and dataset values) |

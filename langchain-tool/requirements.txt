@@ -1,21 +1,21 @@
-# Dependencias directas PINNEADAS a las versiones con las que se ha probado el
-# proyecto (Python 3.14). Fijarlas evita sorpresas de compatibilidad al desplegar.
-# Si añades un paquete, instálalo y vuelve a fijar su versión exacta con `pip freeze`.
+# Direct dependencies PINNED to the versions the project has been tested with
+# (Python 3.14). Pinning avoids compatibility surprises at deploy time.
+# If you add a package, install it and re-pin its exact version with `pip freeze`.
 
-# --- Orquestación de agentes / LLM ---
+# --- Agent / LLM orchestration ---
 langchain==1.4.4
 langchain-core==1.6.9
 langchain-classic==1.0.8        # AgentExecutor + create_tool_calling_agent (LangChain >= 1.0)
-langchain-google-genai==4.4.0   # ChatGoogleGenerativeAI (Gemini) - opcional si no hay API key
+langchain-google-genai==4.4.0   # ChatGoogleGenerativeAI (Gemini) - optional if no API key
 
-# --- Servidor MCP / HTTP ---
-fastmcp==4.1.0                  # servidor MCP: tools, resources y prompts
-mcp==2.3.0                      # protocolo MCP (cliente/servidor)
-starlette==1.7.0                # app HTTP subyacente (custom_route, CORS)
-uvicorn==0.54.0                 # servidor ASGI
+# --- MCP / HTTP server ---
+fastmcp==4.1.0                  # MCP server: tools, resources and prompts
+mcp==2.3.0                      # MCP protocol (client/server)
+starlette==1.7.0                # underlying HTTP app (custom_route, CORS)
+uvicorn==0.54.0                 # ASGI server
 
-# --- Interfaz y utilidades ---
-gradio==6.30.0                  # interfaz web (app.py)
-numexpr==2.14.2                 # parser seguro de la tool `calcular`
-requests==2.34.2                # cliente HTTP de las 2 tools que consumen APIs
-python-dotenv==1.2.4            # carga opcional de .env
+# --- Interface and utilities ---
+gradio==6.30.0                  # web interface (app.py)
+numexpr==2.14.2                 # safe parser for the `calculate` tool
+requests==2.34.2                # HTTP client for the 2 tools that consume APIs
+python-dotenv==1.2.4            # optional .env loading

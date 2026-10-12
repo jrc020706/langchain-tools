@@ -1,51 +1,51 @@
-# langchain-tools — Orientador de Medicamentos (LangChain + Gemini + MCP)
+# langchain-tools — Medication Advisor (LangChain + Gemini + MCP)
 
-Repositorio con un agente conversacional bilingüe (ES/EN) que orienta sobre
-medicamentos, publicado como **servidor MCP + API HTTP sin autenticación** para
-que cualquier cliente (agentes, conectores de chat, scripts) pueda consumirlo.
+Repository with a bilingual (ES/EN) conversational agent that provides guidance
+on medications, published as an **MCP server + HTTP API with no authentication**
+so that any client (agents, chat connectors, scripts) can consume it.
 
-## Contenido del repositorio
+## Repository contents
 
-| Ruta | Qué es |
+| Path | What it is |
 |---|---|
-| [`langchain-tool/`](langchain-tool/README.md) | El proyecto: agente, 10 tools, servidor MCP, interfaz Gradio, datos y Dockerfile |
-| [`langchain-tool/docs/`](langchain-tool/docs) | Documentación: [`api.md`](langchain-tool/docs/api.md), [`despliegue.md`](langchain-tool/docs/despliegue.md), [`arquitectura.md`](langchain-tool/docs/arquitectura.md) |
-| [`skills/orientador-medicamentos/`](skills/orientador-medicamentos/SKILL.md) | Skill para agentes (auto-descubierta por OpenCode/Claude Code) |
-| [`render.yaml`](render.yaml) | Blueprint de Render (2 servicios, `rootDir: langchain-tool`) |
-| [`.python-version`](.python-version) | Fija Python 3.14 en local y en despliegue |
-| [`coding-assistance/`](coding-assistance/README.md) | Trazabilidad del desarrollo asistido por IA (agentes, modelos y prompts usados) |
+| [`langchain-tool/`](langchain-tool/README.md) | The project: agent, 10 tools, MCP server, Gradio interface, data and Dockerfile |
+| [`langchain-tool/docs/`](langchain-tool/docs) | Documentation: [`api.md`](langchain-tool/docs/api.md), [`deployment.md`](langchain-tool/docs/deployment.md), [`architecture.md`](langchain-tool/docs/architecture.md) |
+| [`skills/medication-advisor/`](skills/medication-advisor/SKILL.md) | Skill for agents (auto-discovered by OpenCode/Claude Code) |
+| [`render.yaml`](render.yaml) | Render Blueprint (2 services, `rootDir: langchain-tool`) |
+| [`.python-version`](.python-version) | Pins Python 3.14 locally and in deployment |
+| [`coding-assistance/`](coding-assistance/README.md) | Traceability of AI-assisted development (agents, models and prompts used) |
 
-## Arranque rápido
+## Quick start
 
 ```bash
 cd langchain-tool
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-python app.py            # interfaz web   → http://127.0.0.1:7860
+python app.py            # web interface  → http://127.0.0.1:7860
 python mcp_server.py     # API + MCP      → http://127.0.0.1:8000
 ```
 
-Sin `GOOGLE_API_KEY` todo funciona en modo demo (no hace falta ninguna
-credencial ni para usar el agente ni para consumir su API).
+Without `GOOGLE_API_KEY` everything works in demo mode (no credentials are
+needed, neither to use the agent nor to consume its API).
 
-## Requisitos cubiertos
+## Requirements covered
 
-- ✅ **3 resources** → 6 resources MCP (`GET /resources`).
-- ✅ **5 tools**, dos de ellas consumiendo APIs de internet de **nubes distintas**:
-  **openFDA/FAERS** (`consultar_farmacovigilancia`) y **OpenStreetMap**
-  (`buscar_farmacia_real`); en total 10 tools.
-- ✅ **2 prompts** para consumir esas APIs → `farmacovigilancia_openfda` y
-  `farmacias_reales_osm` (más `consulta_internet`), vía `GET /prompts`.
-- ✅ **Desplegable y consumible desde cualquier cliente** → `render.yaml`
-  (Blueprint), `Dockerfile`, endpoint MCP `POST /mcp`, REST `POST /chat`,
-  respuestas JSON planas y CORS `*`.
-- ✅ **Sin autenticación** → ningún endpoint pide usuario, contraseña ni API key.
-- ✅ **Skill para agentes** → `skills/orientador-medicamentos/SKILL.md`.
-- ✅ **Documentación** → READMEs, `langchain-tool/docs/` y esta página.
-- ✅ **Trazabilidad de IA** → `coding-assistance/README.md` + `prompts.json`.
+- ✅ **3 resources** → 6 MCP resources (`GET /resources`).
+- ✅ **5 tools**, two of them consuming internet APIs from **different clouds**:
+  **openFDA/FAERS** (`query_pharmacovigilance`) and **OpenStreetMap**
+  (`find_real_pharmacy`); 10 tools in total.
+- ✅ **2 prompts** to consume those APIs → `openfda_pharmacovigilance` and
+  `osm_real_pharmacies` (plus `internet_lookup`), via `GET /prompts`.
+- ✅ **Deployable and consumable from any client** → `render.yaml`
+  (Blueprint), `Dockerfile`, MCP endpoint `POST /mcp`, REST `POST /chat`,
+  flat JSON responses and CORS `*`.
+- ✅ **No authentication** → no endpoint requires user, password or API key.
+- ✅ **Skill for agents** → `skills/medication-advisor/SKILL.md`.
+- ✅ **Documentation** → READMEs, `langchain-tool/docs/` and this page.
+- ✅ **AI traceability** → `coding-assistance/README.md` + `prompts.json`.
 
-## Seguridad
+## Security
 
-Orientación general con fines educativos: no diagnostica ni receta. Ante señales
-de alarma (dolor torácico, dificultad para respirar, sangrado abundante, pérdida
-de conciencia) llama al **112**.
+General guidance for educational purposes: it does not diagnose or prescribe.
+In case of warning signs (chest pain, difficulty breathing, heavy bleeding,
+loss of consciousness) call **112**.

@@ -1,27 +1,27 @@
-# 📡 API y protocolo MCP
+# 📡 API and MCP protocol
 
-El servidor (`python mcp_server.py`) expone la misma funcionalidad por dos
-caminos: **HTTP/REST** (fácil de probar con `curl`) y **MCP** (para agentes y
-clientes compatibles). **Ninguno requiere autenticación**: sin API key, sin
-login, sin cabeceras especiales. CORS está abierto (`*`) para uso desde
-cualquier navegador o cliente.
+The server (`python mcp_server.py`) exposes the same functionality through two
+paths: **HTTP/REST** (easy to test with `curl`) and **MCP** (for agents and
+compatible clients). **Neither requires authentication**: no API key, no login,
+no special headers. CORS is open (`*`) so it can be used from any browser or
+client.
 
 - Local: `http://127.0.0.1:8000`
-- Despliegue: `https://orientador-mcp.onrender.com` (o la URL que asigne tu proveedor)
+- Deployment: `https://orientador-mcp.onrender.com` (or whatever URL your provider assigns)
 
 ---
 
-## 1. Endpoints REST
+## 1. REST endpoints
 
-| Método | Ruta | Descripción |
+| Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | Estado del servidor (bilingüe), conteos y APIs usadas |
-| `GET` | `/tools` | Lista las 10 tools con descripción y esquema JSON |
-| `GET` | `/resources` | Lista los 6 resources MCP |
-| `GET` | `/prompts` | Lista los 3 prompts MCP con sus argumentos |
-| `POST` | `/chat` | Ejecuta el agente (memoria por `session_id`) |
-| `GET` | `/history?session_id=x` | Devuelve el historial de una sesión |
-| `POST` | `/mcp` | Endpoint JSON-RPC del protocolo MCP |
+| `GET` | `/` | Server status (bilingual), counts and APIs used |
+| `GET` | `/tools` | Lists the 10 tools with description and JSON schema |
+| `GET` | `/resources` | Lists the 6 MCP resources |
+| `GET` | `/prompts` | Lists the 3 MCP prompts with their arguments |
+| `POST` | `/chat` | Runs the agent (memory per `session_id`) |
+| `GET` | `/history?session_id=x` | Returns the history of a session |
+| `POST` | `/mcp` | JSON-RPC endpoint of the MCP protocol |
 
 ### `GET /`
 
@@ -29,16 +29,30 @@ cualquier navegador o cliente.
 curl -s https://orientador-mcp.onrender.com/
 ```
 
-Respuesta (abreviada):
+Response (abbreviated):
 
 ```json
 {
+  "message": "FastMCP Server: Medication Advisor / Orientador de Medicamentos (Hexagonal Architecture)",
   "version": "3.0.0",
-  "autenticacion": "ninguna (sin API key, sin login): endpoints abiertos",
-  "apis_internet": [
-    {"servicio": "openFDA / FAERS (NIH)", "tool": "consultar_farmacovigilancia", "autenticacion": "ninguna"},
-    {"servicio": "OpenStreetMap (Nominatim + Overpass)", "tool": "buscar_farmacia_real", "autenticacion": "ninguna"}
+  "architecture": "hexagonal (ports and adapters)",
+  "languages": ["es", "en"],
+  "language_mode": "auto-detect per message (override with POST /chat {\"language\": \"es\"|\"en\"})",
+  "authentication": "none (no API key, no login): open endpoints",
+  "endpoints": {
+    "chat": "POST /chat",
+    "history": "GET /history?session_id=x",
+    "tools": "GET /tools",
+    "resources": "GET /resources",
+    "prompts": "GET /prompts",
+    "mcp": "POST /mcp (JSON-RPC MCP)",
+    "status": "GET /"
+  },
+  "internet_apis": [
+    {"service": "openFDA / FAERS (NIH)", "tool": "query_pharmacovigilance", "url": "https://api.fda.gov/drug/event.json", "authentication": "none"},
+    {"service": "OpenStreetMap (Nominatim + Overpass)", "tool": "find_real_pharmacy", "url": "https://nominatim.openstreetmap.org", "authentication": "none"}
   ],
+  "llm_mode": "real",
   "tools_total": 10,
   "resources_total": 6,
   "prompts_total": 3
@@ -47,7 +61,7 @@ Respuesta (abreviada):
 
 ### `POST /chat`
 
-Cuerpo:
+Body:
 
 ```json
 {
@@ -57,24 +71,29 @@ Cuerpo:
 }
 ```
 
-- `input` *(obligatorio)*: mensaje del usuario (ES o EN).
-- `session_id` *(opcional)*: reutilízalo para mantener contexto.
-- `language` *(opcional)*: `"es"`, `"en"` o `"auto"` (por defecto autodetecta).
+(English equivalent: `"What paracetamol dose do I give a 22 kg child?"` with `"language": "en"`.)
 
-Respuesta:
+- `input` *(required)*: user message (ES or EN).
+- `session_id` *(optional)*: reuse it to keep the context.
+- `language` *(optional)*: `"es"`, `"en"` or `"auto"` (auto-detected by default).
+
+Response:
 
 ```json
 {
   "output": "Dosis orientativa de paracetamol para 22 kg: 330 mg por toma …",
   "session_id": "demo",
   "language": "es",
-  "tool_calls": [{"name": "calcular_dosis", "args": {"medicamento": "paracetamol", "peso_kg": 22}}],
+  "tool_calls": [{"name": "calculate_dose", "args": {"medication": "paracetamol", "weight_kg": 22}}],
   "message_count": 2
 }
 ```
 
-Errores: `400` si `input`/`language` no son válidos; `500` con `{"error": …}` si
-algo falla por dentro.
+(The answer text follows the detected language: Spanish for `"es"`, English for `"en"`.)
+
+Errors: `400` if `input`/`language` are not valid — for example
+`{"error": "The 'input' field must be non-empty text."}` — and `500` with
+`{"error": …}` if something fails internally.
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/chat \
@@ -84,18 +103,18 @@ curl -s -X POST http://127.0.0.1:8000/chat \
 
 ---
 
-## 2. Protocolo MCP (`POST /mcp`)
+## 2. MCP protocol (`POST /mcp`)
 
-El servidor FastMCP registra **tools**, **resources** y **prompts** bajo la ruta
-MCP `/mcp`. Arranca en modo `stateless` con respuestas JSON planas (sin SSE), lo
-que simplifica clientes simples (curl, SDKs, conectores de chat).
+The FastMCP server registers **tools**, **resources** and **prompts** under the
+MCP route `/mcp`. It starts in `stateless` mode with flat JSON responses (no
+SSE), which makes life easier for simple clients (curl, SDKs, chat connectors).
 
-### Configuración en un cliente MCP
+### Configuration in an MCP client
 
 ```json
 {
   "mcpServers": {
-    "orientador-medicamentos": {
+    "medication-advisor": {
       "type": "http",
       "url": "https://orientador-mcp.onrender.com/mcp"
     }
@@ -103,9 +122,9 @@ que simplifica clientes simples (curl, SDKs, conectores de chat).
 }
 ```
 
-No se necesitan cabeceras de autorización.
+No authorization headers are needed.
 
-### Ejemplo con el SDK oficial de Python
+### Example with the official Python SDK
 
 ```python
 import asyncio
@@ -119,66 +138,68 @@ async def main():
             print([t.name for t in (await s.list_tools()).tools])          # 10 tools
             print([str(r.uri) for r in (await s.list_resources()).resources])  # 6 resources
             print([p.name for p in (await s.list_prompts()).prompts])      # 3 prompts
-            out = await s.call_tool("consultar_farmacovigilancia", {"nombre": "ibuprofeno"})
+            out = await s.call_tool("query_pharmacovigilance", {"name": "ibuprofeno"})
             print(out.content[0].text)
 
 asyncio.run(main())
 ```
 
-### Métodos soportados
+### Supported methods
 
-| Método | Qué devuelve |
+| Method | What it returns |
 |---|---|
-| `initialize` / `tools/list` | las 10 tools con sus esquemas |
-| `tools/call` | ejecuta una tool (p. ej. `buscar_farmacia_real`) |
-| `resources/list` | los 6 resources |
-| `resources/read` | contenido del dataset (JSON) o de la guía (Markdown) |
-| `prompts/list` | los 3 prompts |
-| `prompts/get` | el mensaje del prompt renderizado con sus argumentos |
+| `initialize` / `tools/list` | the 10 tools with their schemas |
+| `tools/call` | runs a tool (e.g. `find_real_pharmacy`) |
+| `resources/list` | the 6 resources |
+| `resources/read` | dataset content (JSON) or the guide (Markdown) |
+| `prompts/list` | the 3 prompts |
+| `prompts/get` | the prompt message rendered with its arguments |
 
 ---
 
 ## 3. Tools
 
-### 3.1 Locales (datasets de `data/`)
+### 3.1 Local (datasets in `data/`)
 
-`analizar_sintomas`, `buscar_medicamento`, `calcular_dosis`,
-`verificar_interaccion`, `consultar_contraindicacion`, `evaluar_urgencia`,
-`buscar_farmacia`, `calcular`.
+`analyze_symptoms`, `search_medication`, `calculate_dose`,
+`check_interaction`, `check_contraindication`, `assess_urgency`,
+`find_pharmacy`, `calculate`.
 
-Todas aceptan el parámetro opcional `language` (`"es"`, `"en"` o `"auto"`) y
-devuelven texto plano terminado en el disclaimer del idioma.
+All of them accept the optional `language` parameter (`"es"`, `"en"` or
+`"auto"`) and return plain text ending with the disclaimer for the language.
 
-### 3.2 `consultar_farmacovigilancia` — API internet #1 (openFDA)
+### 3.2 `query_pharmacovigilance` — internet API #1 (openFDA)
 
-- **Servicio:** openFDA / FAERS — `https://api.fda.gov/drug/event.json` (NIH, EE. UU.)
-- **Autenticación:** ninguna (API pública sin API key).
-- **Parámetros:** `nombre` (principio activo o marca), `language`.
-- **Qué hace:** traduce el nombre local al genérico USAN (p. ej. `paracetamol` →
-  `acetaminophen`), prueba varios campos exactos (`generic_name`,
-  `medicinalproduct`, `brand_name`) y resume: total de notificaciones, muestra
-  analizada, reacciones más frecuentes y desenlace.
-- **Semántica:** reportes **espontáneos**; correlación ≠ causalidad y hay
-  infrarregistro. El tool lo indica siempre en la salida.
+- **Service:** openFDA / FAERS — `https://api.fda.gov/drug/event.json` (NIH, USA)
+- **Authentication:** none (public API, no API key).
+- **Parameters:** `name` (active ingredient or brand), `language`.
+- **What it does:** translates the local name to the US generic USAN name
+  (e.g. `paracetamol` → `acetaminophen`), tries several exact fields
+  (`generic_name`, `medicinalproduct`, `brand_name`) and summarizes: total
+  reports, analyzed sample, most frequent reactions and outcome.
+- **Semantics:** **spontaneous** reports; correlation ≠ causality and there is
+  under-reporting. The tool always states this in its output.
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' \
   -d '{"input":"¿Qué efectos adversos se han notificado de ibuprofeno?","language":"es"}'
 ```
 
-### 3.3 `buscar_farmacia_real` — API internet #2 (OpenStreetMap)
+(English equivalent: `"What adverse effects have been reported for ibuprofen?"` with `"language": "en"`.)
 
-- **Servicios:** `https://nominatim.openstreetmap.org/search` (geocodificación) y
-  `https://overpass-api.de/api/interpreter` (puntos `amenity=pharmacy`), con
-  mirrors de respaldo (`overpass.private.coffee`, `overpass.kumi.systems`).
-- **Autenticación:** ninguna; solo un `User-Agent` identificativo (lo exige la
-  política de uso de OSM, no es una credencial).
-- **Parámetros:** `ubicacion` (ciudad, barrio o dirección), `language`.
-- **Qué hace:** geocodifica → busca farmacias en un radio de 3 km → calcula
-  distancias (haversine) → devuelve las 5 más cercanas con dirección, teléfono y
-  horario. Si Overpass está saturado, hace *fallback* a una búsqueda directa en
-  Nominatim y reintenta Overpass; si no hay red, sugiere `buscar_farmacia`
-  (datos locales).
+### 3.3 `find_real_pharmacy` — internet API #2 (OpenStreetMap)
+
+- **Services:** `https://nominatim.openstreetmap.org/search` (geocoding) and
+  `https://overpass-api.de/api/interpreter` (`amenity=pharmacy` points), with
+  backup mirrors (`overpass.private.coffee`, `overpass.kumi.systems`).
+- **Authentication:** none; only an identifying `User-Agent` (required by OSM's
+  usage policy, it is not a credential).
+- **Parameters:** `location` (city, neighborhood or address), `language`.
+- **What it does:** geocodes → searches pharmacies within a 3 km radius →
+  computes distances (haversine) → returns the 5 closest ones with address,
+  phone and opening hours. If Overpass is overloaded, it *falls back* to a
+  direct search on Nominatim and retries Overpass; if there is no network, it
+  suggests `find_pharmacy` (local data).
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' \
@@ -189,48 +210,48 @@ curl -s -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' \
 
 ## 4. Resources
 
-| URI | MIME | Contenido |
+| URI | MIME | Content |
 |---|---|---|
-| `medicamentos://dataset` | `application/json` | 18 medicamentos con ficha completa |
-| `sintomas://dataset` | `application/json` | 24 grupos de síntomas |
-| `interacciones://dataset` | `application/json` | 26 interacciones |
-| `contraindicaciones://dataset` | `application/json` | 12 condiciones clínicas |
-| `farmacias://dataset` | `application/json` | 10 farmacias simuladas |
-| `orientador://guia` | `text/markdown` | Guía de tools/prompts/endpoints y APIs |
+| `medications://dataset` | `application/json` | 18 medications with a full record |
+| `symptoms://dataset` | `application/json` | 24 symptom groups |
+| `interactions://dataset` | `application/json` | 26 interactions |
+| `contraindications://dataset` | `application/json` | 12 clinical conditions |
+| `pharmacies://dataset` | `application/json` | 10 simulated pharmacies |
+| `medication-advisor://guide` | `text/markdown` | Guide to tools/prompts/endpoints and APIs |
 
 ```bash
-curl -s http://127.0.0.1:8000/resources | jq '.recursos[].uri'
+curl -s http://127.0.0.1:8000/resources | jq '.resources[].uri'
 ```
 
 ---
 
 ## 5. Prompts
 
-| Prompt | Argumentos | Uso |
+| Prompt | Arguments | Use |
 |---|---|---|
-| `farmacovigilancia_openfda` | `medicamento` (default `ibuprofeno`) | Redacta la llamada a openFDA y cómo interpretarla |
-| `farmacias_reales_osm` | `ubicacion` (default `Madrid`) | Redacta la llamada a OpenStreetMap y su fallback |
-| `consulta_internet` | `medicamento`, `ubicacion` | Encadena ambas APIs con las tools locales |
+| `openfda_pharmacovigilance` | `medication` (default `ibuprofeno`) | Drafts the openFDA call and how to interpret it |
+| `osm_real_pharmacies` | `location` (default `Madrid`) | Drafts the OpenStreetMap call and its fallback |
+| `internet_lookup` | `medication`, `location` | Chains both APIs together with the local tools |
 
 ```bash
-curl -s http://127.0.0.1:8000/prompts | jq '.prompts[].nombre'
+curl -s http://127.0.0.1:8000/prompts | jq '.prompts[].name'
 ```
 
 ---
 
-## 6. Interfaz Gradio (`app.py`)
+## 6. Gradio interface (`app.py`)
 
-Servicio independiente (`orientador-web`), por defecto `http://127.0.0.1:7860`:
+Standalone service (`orientador-web`), by default `http://127.0.0.1:7860`:
 
-- `GET /` → interfaz de chat (sin login).
-- Usa el mismo `ChatUseCase` (mismas tools y prompts) que el servidor MCP.
+- `GET /` → chat interface (no login).
+- Uses the same `ChatUseCase` (same tools and prompts) as the MCP server.
 
 ---
 
-## 7. Límites conocidos
+## 7. Known limitations
 
-- El historial de sesión está **en memoria**: se pierde al reiniciar el proceso.
-- En modo demo (sin `GOOGLE_API_KEY`) el enrutado de tools lo hace un LLM
-  simulado por palabras clave; con la key, decide Gemini.
-- Las APIs externas pueden estar caídas o saturadas: las tools avisan y degradan
-  en lugar de romper la conversación.
+- Session history is **in memory**: it is lost when the process restarts.
+- In demo mode (without `GOOGLE_API_KEY`) tool routing is done by a simulated
+  LLM matching keywords; with the key, Gemini decides.
+- External APIs may be down or overloaded: the tools warn and degrade instead
+  of breaking the conversation.

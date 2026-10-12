@@ -1,0 +1,1 @@
+../../../skills/medication-advisor/SKILL.md

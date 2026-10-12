@@ -1,0 +1,784 @@
+[
+  {
+    "id": "fiebre",
+    "keywords": [
+      "fiebre",
+      "febril",
+      "temperatura",
+      "calentura",
+      "escalofríos",
+      "escalofrios"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Infección viral (gripe, resfriado)",
+        "description": "Fiebre < 39.5 °C con tos, congestión o dolor muscular"
+      },
+      {
+        "name": "Infección bacteriana",
+        "description": "Fiebre persistente > 3 días, focalizada (oído, garganta, orina)"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno"
+    ],
+    "red_flags": [
+      "Fiebre > 41 °C o que no baja con antitérmicos",
+      "Fiebre > 3 días en adultos o > 24 h en lactantes < 3 meses",
+      "Rigidez de nuca, confusión, manchas en la piel, convulsiones",
+      "Dificultad para respirar"
+    ],
+    "general_advice": "Hidratarse, reposo, ropa ligera. Medir la temperatura con termómetro. En lactantes < 3 meses con fiebre ≥ 38 °C, acudir a urgencias"
+  },
+  {
+    "id": "dolor_cabeza",
+    "keywords": [
+      "dolor de cabeza",
+      "cefalea",
+      "migraña",
+      "migraña",
+      "jaqueca",
+      "cabeza me duele",
+      "me duele la cabeza"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Cefalea tensional",
+        "description": "Dolor opresivo bilateral, estrés, malas posturas"
+      },
+      {
+        "name": "Migraña",
+        "description": "Dolor pulsátil unilateral con náuseas o sensibilidad a luz/sonido"
+      },
+      {
+        "name": "Cefalea secundaria",
+        "description": "Asociada a fiebre, sinusitis, hipertensión o traumatismo"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno"
+    ],
+    "red_flags": [
+      "Dolor súbito e intenso (el peor de tu vida)",
+      "Con fiebre alta y rigidez de nuca",
+      "Tras traumatismo craneal",
+      "Con pérdida de visión, debilidad o dificultad para hablar"
+    ],
+    "general_advice": "Descanso en ambiente tranquilo y oscuro, hidratación. Si son frecuentes (> 2/semana) o cambian de patrón, consultar al médico"
+  },
+  {
+    "id": "dolor_garganta",
+    "keywords": [
+      "garganta",
+      "amigdal",
+      "faring",
+      "tragar me duele",
+      "carraspera"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Faringitis viral",
+        "description": "Dolor con tos, congestión, sin fiebre alta"
+      },
+      {
+        "name": "Faringoamigdalitis bacteriana",
+        "description": "Dolor intenso, fiebre > 38.5 °C, placas blancas, ganglios inflamados, sin tos"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno"
+    ],
+    "red_flags": [
+      "Dificultad para tragar saliva o respirar",
+      "Fiebre > 39 °C más de 2 días",
+      "Bulto en el cuello que crece rápido"
+    ],
+    "general_advice": "Gárgaras con agua tibia y sal, miel con limón (no en < 1 año), pastillas calmantes. Los antibióticos solo sirven si es bacteriana: lo decide el médico"
+  },
+  {
+    "id": "tos_seca",
+    "keywords": [
+      "tos seca",
+      "tos sin flema",
+      "tos irritativa",
+      "tos persistente"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Irritación post-viral",
+        "description": "Tos seca semanas tras un resfriado"
+      },
+      {
+        "name": "Alergia / asma",
+        "description": "Tos con picor nasal, estornudos o silbidos"
+      },
+      {
+        "name": "Reflujo gastroesofágico",
+        "description": "Tos nocturna con acidez"
+      }
+    ],
+    "otc_medicines": [
+      "dextrometorfano",
+      "miel",
+      "loratadina"
+    ],
+    "red_flags": [
+      "Tos con sangre",
+      "Silbidos intensos o dificultad respiratoria",
+      "Tos > 3 semanas sin mejoría",
+      "Pérdida de peso"
+    ],
+    "general_advice": "Hidratación, miel, evitar irritantes (humo, polvo). El dextrometorfano calma la tos seca; no usar antitusivos si hay flema abundante"
+  },
+  {
+    "id": "tos_flema",
+    "keywords": [
+      "flema",
+      "mocos",
+      "expector",
+      "tos con moco",
+      "tos productiva"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Bronquitis / resfriado con mucosidad",
+        "description": "Tos con moco claro o amarillento leve"
+      },
+      {
+        "name": "Infección bacteriana respiratoria",
+        "description": "Moco verde oscuro persistente con fiebre > 3 días"
+      }
+    ],
+    "otc_medicines": [
+      "guaifenesina",
+      "paracetamol"
+    ],
+    "red_flags": [
+      "Moco con sangre",
+      "Fiebre alta persistente con dolor torácico",
+      "Dificultad respiratoria"
+    ],
+    "general_advice": "No frenar la tos productiva con antitusivos: hay que expulsar el moco. Mucolíticos/expectorantes y mucha agua ayudan"
+  },
+  {
+    "id": "resfriado",
+    "keywords": [
+      "resfriado",
+      "constipado",
+      "congestión",
+      "congestion",
+      "nariz tapada",
+      "estornudos",
+      "estornudo",
+      "moqueo"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Resfriado común (rinovirus)",
+        "description": "Congestión, estornudos, dolor de garganta leve, 7-10 días"
+      },
+      {
+        "name": "Rinitis alérgica",
+        "description": "Estornudos en rachas, picor nasal/ojos, moco transparente, sin fiebre"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "loratadina",
+      "cetirizina",
+      "suero fisiológico nasal"
+    ],
+    "red_flags": [
+      "Fiebre > 39 °C persistente",
+      "Dolor facial intenso con fiebre (posible sinusitis)",
+      "Síntomas > 10 días sin mejoría"
+    ],
+    "general_advice": "Lavados nasales con suero, hidratación, reposo. Los antibióticos no sirven para virus. Si hay picor y estornudos estacionales, probar antihistamínico"
+  },
+  {
+    "id": "alergia",
+    "keywords": [
+      "alergia",
+      "alérgico",
+      "alergico",
+      "urticaria",
+      "ronchas",
+      "picor en la piel",
+      "picazón",
+      "rinitis alérgica"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Rinitis alérgica",
+        "description": "Estornudos, picor nasal y ocular, moco claro"
+      },
+      {
+        "name": "Urticaria",
+        "description": "Ronchas con picor que cambian de sitio"
+      },
+      {
+        "name": "Alergia alimentaria / medicamentosa",
+        "description": "Síntomas tras comer o tomar algo concreto"
+      }
+    ],
+    "otc_medicines": [
+      "loratadina",
+      "cetirizina",
+      "ebastina"
+    ],
+    "red_flags": [
+      "Hinchazón de labios, lengua o párpados",
+      "Dificultad para respirar o tragar",
+      "Mareo o desmayo tras exposición (anafilaxia: llamar 112)"
+    ],
+    "general_advice": "Identificar y evitar el desencadenante. Antihistamínico de segunda generación (no dan sueño). Ante hinchazón facial o ahogo: urgencias"
+  },
+  {
+    "id": "diarrea",
+    "keywords": [
+      "diarrea",
+      "diarreas",
+      "descompuesto",
+      "suelto",
+      "deposiciones líquidas",
+      "deposiciones liquidas"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Gastroenteritis viral",
+        "description": "Diarrea acuosa con náuseas, a veces vómitos y fiebre leve"
+      },
+      {
+        "name": "Diarrea del viajero / alimentaria",
+        "description": "Tras comida sospechosa o viaje"
+      }
+    ],
+    "otc_medicines": [
+      "loperamida",
+      "sales de rehidratación oral"
+    ],
+    "red_flags": [
+      "Sangre o moco en heces con fiebre alta (no tomar loperamida)",
+      "Signos de deshidratación (mareo, orina escasa oscura, boca seca)",
+      "Diarrea > 48 h en adultos o > 24 h en niños",
+      "Dolor abdominal intenso"
+    ],
+    "general_advice": "Lo esencial es rehidratarse (agua, sales de rehidratación, caldos). Dieta blanda progresiva. Loperamida solo si NO hay fiebre alta ni sangre en heces"
+  },
+  {
+    "id": "nauseas_vomitos",
+    "keywords": [
+      "náuseas",
+      "nauseas",
+      "vómitos",
+      "vomitos",
+      "vomito",
+      "ganas de vomitar",
+      "mareo estomacal"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Gastroenteritis",
+        "description": "Náuseas/vómitos con o sin diarrea"
+      },
+      {
+        "name": "Mareo por movimiento",
+        "description": "En coche, barco (cinetosis)"
+      },
+      {
+        "name": "Indigestión",
+        "description": "Tras comidas copiosas"
+      }
+    ],
+    "otc_medicines": [
+      "sales de rehidratación oral",
+      "jengibre"
+    ],
+    "red_flags": [
+      "Vómitos con sangre o poso de café",
+      "Vómitos persistentes > 24 h sin tolerar líquidos",
+      "Dolor abdominal intenso, rigidez",
+      "Signos de deshidratación"
+    ],
+    "general_advice": "Sorbos pequeños y frecuentes de líquidos. Reintroducir comida blanda poco a poco. Si no se tolera nada en 12-24 h, consultar"
+  },
+  {
+    "id": "acidez",
+    "keywords": [
+      "acidez",
+      "ardor",
+      "reflujo",
+      "agruras",
+      "pirosis",
+      "estómago me quema",
+      "estomago me quema"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Reflujo gastroesofágico / gastritis",
+        "description": "Ardor tras comidas, al tumbarse, con regurgitación"
+      },
+      {
+        "name": "Úlcera péptica",
+        "description": "Dolor epigástrico en ayunas que mejora comiendo, o nocturno"
+      }
+    ],
+    "otc_medicines": [
+      "omeprazol",
+      "antiácidos (alginatos)"
+    ],
+    "red_flags": [
+      "Vómitos con sangre o heces negras",
+      "Dolor torácico opresivo (descartar corazón)",
+      "Pérdida de peso sin causa, dificultad para tragar",
+      "Síntomas > 2 semanas pese a tratamiento"
+    ],
+    "general_advice": "Comidas pequeñas, evitar picante/grasa/alcohol/tabaco/café, no tumbarse tras comer, elevar cabecera. Omeprazol 20 mg/día máx. 14 días sin supervisión"
+  },
+  {
+    "id": "estrenimiento",
+    "keywords": [
+      "estreñimiento",
+      "estrenimiento",
+      "no puedo ir al baño",
+      "constipación"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Estreñimiento funcional",
+        "description": "Pocas deposiciones, duras, esfuerzo; dieta pobre en fibra, poca agua, sedentarismo"
+      }
+    ],
+    "otc_medicines": [
+      "lactulosa",
+      "plantago",
+      "macrogol"
+    ],
+    "red_flags": [
+      "Sangre en heces",
+      "Cambio brusco del ritmo intestinal en > 50 años",
+      "Dolor abdominal intenso con vómitos (posible obstrucción)",
+      "Pérdida de peso"
+    ],
+    "general_advice": "Fibra (fruta, verdura, legumbres), 1.5-2 L de agua, ejercicio, no reprimir las ganas. Los laxantes estimulantes solo uso puntual"
+  },
+  {
+    "id": "dolor_muscular",
+    "keywords": [
+      "dolor muscular",
+      "agujetas",
+      "contractura",
+      "tirón",
+      "tiron",
+      "dolor de espalda",
+      "lumbago",
+      "cervical",
+      "cuello me duele"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Sobrecarga / contractura",
+        "description": "Tras esfuerzo, mala postura; dolor localizado que empeora con movimiento"
+      },
+      {
+        "name": "Lumbalgia mecánica",
+        "description": "Dolor lumbar sin irradiación ni fiebre"
+      }
+    ],
+    "otc_medicines": [
+      "ibuprofeno",
+      "paracetamol",
+      "diclofenaco tópico"
+    ],
+    "red_flags": [
+      "Tras traumatismo fuerte",
+      "Con fiebre",
+      "Dolor con hormigueo/pérdida de fuerza en piernas o brazos",
+      "Incontinencia urinaria o fecal (urgencias)",
+      "Dolor que no mejora en 1-2 semanas"
+    ],
+    "general_advice": "Calor local, reposo relativo (no cama prolongada), estiramientos suaves. AINE con comida. Fisioterapia si se repite"
+  },
+  {
+    "id": "dolor_articular",
+    "keywords": [
+      "articulación",
+      "articulacion",
+      "rodilla",
+      "tobillo",
+      "hombro",
+      "codo",
+      "muñeca",
+      "artritis",
+      "artrosis"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Artrosis",
+        "description": "Dolor con rigidez matutina corta, empeora con uso, en > 50 años"
+      },
+      {
+        "name": "Esguince / traumatismo",
+        "description": "Tras torcedura o golpe, con hinchazón"
+      }
+    ],
+    "otc_medicines": [
+      "ibuprofeno",
+      "diclofenaco tópico",
+      "paracetamol"
+    ],
+    "red_flags": [
+      "Articulación muy hinchada, caliente y con fiebre",
+      "Tras traumatismo con deformidad o no poder apoyar",
+      "Dolor que despierta por la noche sin causa"
+    ],
+    "general_advice": "Frío las primeras 48 h tras golpe, calor después. Reposo relativo y antiinflamatorio tópico. Si persiste > 1 semana, valoración médica"
+  },
+  {
+    "id": "dolor_menstrual",
+    "keywords": [
+      "menstrual",
+      "regla",
+      "dismenorrea",
+      "cólicos menstruales",
+      "colicos",
+      "dolor de ovarios"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Dismenorrea primaria",
+        "description": "Dolor tipo cólico los primeros días de la regla, sin otra causa"
+      }
+    ],
+    "otc_medicines": [
+      "ibuprofeno",
+      "naproxeno"
+    ],
+    "red_flags": [
+      "Dolor que no cede con AINEs",
+      "Sangrado muy abundante (empapar compresa en < 1 h)",
+      "Dolor fuera de la regla o con fiebre",
+      "Inicio brusco tras años sin dolor"
+    ],
+    "general_advice": "Calor local en abdomen, AINE al inicio del dolor (más eficaz preventivo). Si interfiere con la vida diaria cada mes, consultar ginecología"
+  },
+  {
+    "id": "dolor_dental",
+    "keywords": [
+      "dolor de muela",
+      "dolor de diente",
+      "dolor dental",
+      "muela",
+      "diente me duele",
+      "encía",
+      "encia"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Caries / pulpitis",
+        "description": "Dolor con frío/calor/dulce, o espontáneo nocturno"
+      },
+      {
+        "name": "Absceso dental",
+        "description": "Dolor pulsátil con hinchazón de encía o cara, a veces fiebre"
+      }
+    ],
+    "otc_medicines": [
+      "ibuprofeno",
+      "paracetamol"
+    ],
+    "red_flags": [
+      "Hinchazón facial que avanza, fiebre, dificultad para tragar/respirar (urgencias)",
+      "Dolor que no cede con analgésicos"
+    ],
+    "general_advice": "Los analgésicos alivian pero no curan: hay que ir al dentista. Enjuagues con agua tibia y sal. No poner aspirina sobre la encía (quema)"
+  },
+  {
+    "id": "dolor_oido",
+    "keywords": [
+      "oído",
+      "oido",
+      "otitis",
+      "me duele el oído",
+      "oigo peor"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Otitis externa",
+        "description": "Dolor al tocar el oído, tras piscina, picor"
+      },
+      {
+        "name": "Otitis media",
+        "description": "Dolor intenso con fiebre, tras resfriado; en niños llanto nocturno"
+      }
+    ],
+    "otc_medicines": [
+      "ibuprofeno",
+      "paracetamol"
+    ],
+    "red_flags": [
+      "Supuración del oído",
+      "Fiebre alta persistente en < 2 años",
+      "Hinchazón detrás de la oreja, mareo intenso"
+    ],
+    "general_advice": "Analgésico para el dolor. No introducir bastoncillos ni gotas sin indicación. En niños pequeños con fiebre, valoración pediátrica"
+  },
+  {
+    "id": "insomnio",
+    "keywords": [
+      "insomnio",
+      "no puedo dormir",
+      "no duermo",
+      "desvelo",
+      "dormir mal",
+      "conciliar el sueño"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Insomnio de inicio / mantenimiento",
+        "description": "Estrés, horarios irregulares, pantallas, cafeína"
+      },
+      {
+        "name": "Trastorno del ritmo (jet lag, turnos)",
+        "description": "Horarios cambiantes o viajes"
+      }
+    ],
+    "otc_medicines": [
+      "melatonina",
+      "valeriana",
+      "doxilamina"
+    ],
+    "red_flags": [
+      "Somnolencia diurna que afecta a conducir/trabajar",
+      "Ronquidos con pausas respiratorias (posible apnea: consultar)",
+      "Insomnio > 3 semanas pese a higiene del sueño"
+    ],
+    "general_advice": "Higiene del sueño: horario fijo, sin pantallas 1 h antes, habitación fresca y oscura, evitar cafeína por la tarde. Melatonina 0.5-1 mg 30-60 min antes"
+  },
+  {
+    "id": "quemadura",
+    "keywords": [
+      "quemadura",
+      "quemado",
+      "quemé",
+      "queme",
+      "ampolla por calor",
+      "sol me quemó"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Quemadura leve (1er grado)",
+        "description": "Enrojecimiento sin ampollas, dolor leve"
+      },
+      {
+        "name": "Quemadura de 2.º grado superficial",
+        "description": "Ampollas pequeñas, dolor intenso"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno",
+      "aloe vera",
+      "sulfadiazina argéntica"
+    ],
+    "red_flags": [
+      "Quemadura extensa, en cara/manos/genitales",
+      "Ampollas grandes o piel blanca/carbonizada",
+      "Quemadura eléctrica o química",
+      "Signos de infección (pus, fiebre)"
+    ],
+    "general_advice": "Enfriar con agua tibia 10-20 min (nunca hielo directo ni pasta dental). No reventar ampollas. Aloe o apósito estéril. Protección solar posterior"
+  },
+  {
+    "id": "herida",
+    "keywords": [
+      "herida",
+      "corte",
+      "corté",
+      "corte",
+      "raspadura",
+      "rozadura",
+      "sangra"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Herida superficial",
+        "description": "Corte o raspadura leve, sangrado que cede con presión"
+      }
+    ],
+    "otc_medicines": [
+      "clorhexidina",
+      "povidona yodada",
+      "apósitos"
+    ],
+    "red_flags": [
+      "Sangrado que no cede en 10 min de presión",
+      "Corte profundo, bordes separados o en cara/articulación",
+      "Herida sucia con tierra/óxido y vacuna antitetánica desactualizada",
+      "Signos de infección"
+    ],
+    "general_advice": "Lavar con agua y jabón, desinfectar (clorhexidina), cubrir con apósito limpio. Revisar vacuna del tétanos (recuerdo cada 10 años)"
+  },
+  {
+    "id": "picadura",
+    "keywords": [
+      "picadura",
+      "picó un bicho",
+      "mosquito",
+      "avispa",
+      "abeja",
+      "garrapata"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Picadura leve",
+        "description": "Roncha local con picor, sin síntomas generales"
+      },
+      {
+        "name": "Reacción local extensa",
+        "description": "Hinchazón grande (> 10 cm) pero sin síntomas generales"
+      }
+    ],
+    "otc_medicines": [
+      "cetirizina",
+      "hidrocortisona tópica",
+      "amoniaco tópico"
+    ],
+    "red_flags": [
+      "Hinchazón de cara/lengua, ahogo, mareo (anafilaxia: 112 + adrenalina si la tiene)",
+      "Picadura en boca/garganta",
+      "Garrapata: extraer entera y vigilar fiebre/erupción semanas después"
+    ],
+    "general_advice": "Lavar, frío local, no rascarse. Antihistamínico si pica mucho. Extraer aguijón raspando (no con pinzas apretando)"
+  },
+  {
+    "id": "ojos",
+    "keywords": [
+      "ojos rojos",
+      "conjuntivitis",
+      "ojo me pica",
+      "legañas",
+      "lagañas",
+      "orzuelo"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Conjuntivitis alérgica",
+        "description": "Picor intenso en ambos ojos, lagrimeo, con rinitis"
+      },
+      {
+        "name": "Conjuntivitis infecciosa",
+        "description": "Legañas amarillas que pegan párpados, un ojo primero"
+      },
+      {
+        "name": "Orzuelo",
+        "description": "Bulto doloroso en el borde del párpado"
+      }
+    ],
+    "otc_medicines": [
+      "lágrimas artificiales",
+      "cetirizina",
+      "compresas tibias"
+    ],
+    "red_flags": [
+      "Dolor ocular intenso o pérdida de visión",
+      "Tras traumatismo o producto químico (lavar 15 min y urgencias)",
+      "Fotosensibilidad intensa con dolor"
+    ],
+    "general_advice": "No frotarse, higiene de manos, no compartir toallas. Legañas: limpiar con suero. Alérgica: antihistamínico + evitar alérgeno. Si hay pus abundante, valoración médica"
+  },
+  {
+    "id": "cistitis",
+    "keywords": [
+      "cistitis",
+      "escozor al orinar",
+      "me escuece al orinar",
+      "orinar mucho",
+      "infección de orina",
+      "pipí me duele"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Cistitis (infección urinaria baja)",
+        "description": "Escozor al orinar, ganas frecuentes, orina turbia, sin fiebre alta"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno",
+      "arándano rojo"
+    ],
+    "red_flags": [
+      "Fiebre > 38 °C con dolor lumbar (posible pielonefritis: urgencias)",
+      "Sangre abundante en orina",
+      "Embarazo con síntomas urinarios",
+      "Varones, niños o > 3 episodios/año (estudio médico)"
+    ],
+    "general_advice": "Beber mucha agua, no aguantarse las ganas, orinar tras relaciones. La cistitis bacteriana suele necesitar antibiótico con receta: consultar al médico"
+  },
+  {
+    "id": "mareo",
+    "keywords": [
+      "mareo",
+      "mareado",
+      "vértigo",
+      "vertigo",
+      "todo me da vueltas",
+      "me voy a desmayar"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Mareo inespecífico",
+        "description": "Por deshidratación, bajada de tensión, ayuno"
+      },
+      {
+        "name": "Vértigo posicional",
+        "description": "El mundo gira segundos al mover la cabeza"
+      },
+      {
+        "name": "Cinetosis",
+        "description": "En coche/barco"
+      }
+    ],
+    "otc_medicines": [
+      "dimenhidrinato",
+      "sales de rehidratación oral"
+    ],
+    "red_flags": [
+      "Con dolor torácico, palpitaciones o desmayo",
+      "Con debilidad en un lado, dificultad para hablar (posible ictus: 112)",
+      "Vértigo intenso persistente con vómitos que impide caminar"
+    ],
+    "general_advice": "Sentarse, hidratarse, comer algo si es ayuno. Para viajes: dimenhidrinato 30 min antes. Si se repite, medir tensión y consultar"
+  },
+  {
+    "id": "gripe",
+    "keywords": [
+      "gripe",
+      "gripa",
+      "influenza",
+      "cuerpo cortado",
+      "me duelen los huesos"
+    ],
+    "possible_conditions": [
+      {
+        "name": "Gripe (influenza)",
+        "description": "Inicio brusco: fiebre alta, dolor muscular, cefalea, tos seca, cansancio intenso"
+      }
+    ],
+    "otc_medicines": [
+      "paracetamol",
+      "ibuprofeno"
+    ],
+    "red_flags": [
+      "Dificultad respiratoria, dolor torácico",
+      "Fiebre > 5 días o mejoría seguida de empeoramiento",
+      "Grupos de riesgo (embarazo, > 65, crónicos) con síntomas intensos",
+      "Deshidratación"
+    ],
+    "general_advice": "Reposo, líquidos, antitérmicos. Los antibióticos no sirven (es virus). Aislamiento y mascarilla los primeros días. Vacunación anual en grupos de riesgo"
+  }
+]

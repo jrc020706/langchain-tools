@@ -1,18 +1,18 @@
 from domain.i18n import detect_language
-from tools import buscar_medicamento
+from tools import search_medication
 
 
-def test_detecta_espanol():
+def test_detects_spanish():
     assert detect_language("Tengo fiebre y dolor") == "es"
 
 
-def test_detecta_ingles():
+def test_detects_english():
     assert detect_language("I have a headache") == "en"
 
 
-def test_busca_un_medicamento_local():
-    respuesta = buscar_medicamento.invoke({
-        "nombre": "ibuprofeno",
+def test_searches_a_local_medication():
+    answer = search_medication.invoke({
+        "name": "ibuprofeno",
         "language": "es",
     })
-    assert "ibuprofeno" in respuesta.lower()
+    assert "ibuprofeno" in answer.lower()

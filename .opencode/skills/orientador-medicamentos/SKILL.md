@@ -1,1 +1,0 @@
-../../../skills/orientador-medicamentos/SKILL.md

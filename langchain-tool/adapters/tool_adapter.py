@@ -19,7 +19,7 @@ from tools import TOOLS as ORIGINAL_TOOLS
 class ToolAdapter(ToolPort):
     """Concrete adapter for medication guidance tools.
     
-    Wraps the 8 tools from tools.py (analizar_sintomas, buscar_medicamento, etc.)
+    Wraps the 10 tools from tools.py (analyze_symptoms, search_medication, etc.)
     and exposes them through the ToolPort protocol.
     
     The domain layer only knows about the ToolPort interface,
@@ -52,7 +52,7 @@ class ToolAdapter(ToolPort):
         """Get the list of available tools.
         
         Returns:
-            List of StructuredTool instances (8 medication tools)
+            List of StructuredTool instances (10 medication tools)
         """
         return self._tools
     
@@ -60,7 +60,7 @@ class ToolAdapter(ToolPort):
         """Get the JSON schema for a specific tool.
         
         Args:
-            tool_name: Name of the tool (e.g., "analizar_sintomas")
+            tool_name: Name of the tool (e.g., "analyze_symptoms")
             
         Returns:
             Dict with the tool's parameter schema, or None if not found

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Farmacia Central Sol",
+    "address": "Calle Mayor 12, Madrid Centro",
+    "city": "Madrid",
+    "phone": "910 123 456",
+    "opening_hours": "L-V 9:00-21:00, S 9:00-14:00",
+    "on_duty": false
+  },
+  {
+    "name": "Farmacia de Guardia Atocha",
+    "address": "Paseo de las Delicias 45, Madrid",
+    "city": "Madrid",
+    "phone": "914 234 567",
+    "opening_hours": "24 horas",
+    "on_duty": true
+  },
+  {
+    "name": "Farmacia Sagrada Familia",
+    "address": "Calle Mallorca 418, Barcelona",
+    "city": "Barcelona",
+    "phone": "932 345 678",
+    "opening_hours": "L-V 9:00-20:30, S 9:00-13:30",
+    "on_duty": false
+  },
+  {
+    "name": "Farmacia de Guardia Diagonal",
+    "address": "Avinguda Diagonal 520, Barcelona",
+    "city": "Barcelona",
+    "phone": "934 456 789",
+    "opening_hours": "24 horas",
+    "on_duty": true
+  },
+  {
+    "name": "Farmacia Plaza Nueva",
+    "address": "Plaza Nueva 8, Sevilla",
+    "city": "Sevilla",
+    "phone": "954 567 890",
+    "opening_hours": "L-V 9:00-21:00",
+    "on_duty": false
+  },
+  {
+    "name": "Farmacia de Guardia Nervión",
+    "address": "Av. de la Constitución 32, Sevilla",
+    "city": "Sevilla",
+    "phone": "955 678 901",
+    "opening_hours": "24 horas",
+    "on_duty": true
+  },
+  {
+    "name": "Farmacia Mercado Colón",
+    "address": "Calle Conde Salvatierra 20, Valencia",
+    "city": "Valencia",
+    "phone": "963 789 012",
+    "opening_hours": "L-V 9:00-20:00, S 9:00-14:00",
+    "on_duty": false
+  },
+  {
+    "name": "Farmacia de Guardia Ruzafa",
+    "address": "Calle Sueca 55, Valencia",
+    "city": "Valencia",
+    "phone": "963 890 123",
+    "opening_hours": "24 horas",
+    "on_duty": true
+  },
+  {
+    "name": "Farmacia Casco Viejo",
+    "address": "Calle Correo 15, Bilbao",
+    "city": "Bilbao",
+    "phone": "944 901 234",
+    "opening_hours": "L-V 9:00-20:00",
+    "on_duty": false
+  },
+  {
+    "name": "Farmacia Alameda",
+    "address": "Alameda Recalde 30, Bilbao",
+    "city": "Bilbao",
+    "phone": "944 012 345",
+    "opening_hours": "L-S 9:00-22:00",
+    "on_duty": true
+  }
+]

@@ -1,9 +1,9 @@
-# Imagen del orientador de medicamentos (API HTTP + servidor MCP).
-# Construcción y arranque desde la raíz del repo:
-#   docker build -t orientador ./langchain-tool
-#   docker run -p 8000:8000 -e HOST=0.0.0.0 orientador                 # servidor MCP
-#   docker run -p 7860:7860 -e HOST=0.0.0.0 orientador python app.py    # interfaz Gradio
-# No necesita ninguna API key ni credencial: arranca en modo demo si no hay GOOGLE_API_KEY.
+# Image for the medication advisor (HTTP API + MCP server).
+# Build and run from the repo root:
+#   docker build -t medication-advisor ./langchain-tool
+#   docker run -p 8000:8000 -e HOST=0.0.0.0 medication-advisor                 # MCP server
+#   docker run -p 7860:7860 -e HOST=0.0.0.0 medication-advisor python app.py    # Gradio UI
+# It needs no API key nor credential: it starts in demo mode if GOOGLE_API_KEY is absent.
 FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \

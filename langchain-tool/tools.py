@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 """
-Tools del agente de orientación de medicamentos.
+Tools for the medication guidance agent.
 
-Cada tool es una función decorada con @tool de LangChain:
-- El nombre y el docstring los usa Gemini para decidir cuándo llamarla.
-- Todas devuelven texto plano (str) con la información encontrada.
-- Los datos viven en data/*.json para poder ampliarlos sin tocar código.
+Each tool is a function decorated with LangChain's @tool:
+- Gemini uses the name and docstring to decide when to call it.
+- All of them return plain text (str) with the information found.
+- Data lives in data/*.json so it can be extended without touching code.
 
-Tools disponibles:
-1. analizar_sintomas      - síntomas en texto libre -> causas posibles + OTC + alarmas
-2. buscar_medicamento      - nombre comercial o principio activo -> ficha completa
-3. calcular_dosis           - medicamento + peso (kg) -> dosis pediátrica por toma
-4. verificar_interaccion    - 2 fármacos -> interacción, severidad y recomendación
-5. consultar_contraindicacion - fármaco + condición (embarazo, hipertensión...) -> advertencias
-6. evaluar_urgencia         - descripción de síntomas -> triaje (hogar / médico / 112)
-7. buscar_farmacia          - ubicación -> farmacias cercanas (simulado)
-8. calcular                - expresión matemática -> resultado (parser seguro con numexpr)
-9. consultar_farmacovigilancia - fármaco -> notificaciones de reacciones adversas (API openFDA)  [API internet #1]
-10. buscar_farmacia_real     - ubicación -> farmacias reales de OpenStreetMap (Nominatim + Overpass)  [API internet #2]
+Tools:
+1. analyze_symptoms            - free-text symptoms -> possible causes + OTC + red flags
+2. search_medication           - brand or active ingredient -> full medicine card
+3. calculate_dose              - medicine + weight (kg) -> pediatric dose per intake
+4. check_interaction           - 2 drugs -> interaction, severity and recommendation
+5. check_contraindication      - drug + condition (pregnancy, hypertension...) -> warnings
+6. assess_urgency              - symptom description -> triage (home / doctor / 112)
+7. find_pharmacy               - location -> nearby (simulated) pharmacies
+8. calculate                   - math expression -> result (safe numexpr parser)
+9. query_pharmacovigilance     - drug -> adverse-event reports (openFDA API)   [internet API #1]
+10. find_real_pharmacy         - location -> real OpenStreetMap pharmacies
+                                  (Nominatim + Overpass)                       [internet API #2]
 
-Las tools 9 y 10 son las dos que consumen APIs de internet de dos servicios
-en la nube distintos (openFDA / NIH y OpenStreetMap). Ambas son públicas y
-no requieren autenticación ni API key; si la red falla, devuelven un aviso
-y las 9 y 10 hacen fallback a los datasets locales cuando aplica.
+Tools 9 and 10 are the two that consume internet APIs from two different
+cloud services (openFDA / NIH and OpenStreetMap). Both are public and need
+no authentication or API key; if the network fails they return a notice,
+and 9 and 10 fall back to the local datasets where applicable.
+
+Responses are bilingual (ES/EN): every tool accepts a `language` parameter
+("es", "en" or "auto") and keeps the Spanish data content of data/*.json.
 """
 
 import json
@@ -38,12 +42,12 @@ from langchain_core.tools import tool
 DATA_DIR = Path(__file__).parent / "data"
 
 # ---------------------------------------------------------------------------
-# Configuración compartida de las tools que consumen APIs de internet
-# (servicios en la nube distintos, públicos y SIN autenticación)
+# Shared configuration for the tools that consume internet APIs
+# (different cloud services, public and WITH NO authentication)
 # ---------------------------------------------------------------------------
-# API internet #1: openFDA (NIH / U.S. FAERS) - https://open.fda.gov/apis/
+# Internet API #1: openFDA (NIH / U.S. FAERS) - https://open.fda.gov/apis/
 OPENFDA_EVENT_URL = "https://api.fda.gov/drug/event.json"
-# API internet #2: OpenStreetMap - Nominatim (geocodificación) + Overpass (datos)
+# Internet API #2: OpenStreetMap - Nominatim (geocoding) + Overpass (data)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 OVERPASS_URLS = (
     "https://overpass-api.de/api/interpreter",
@@ -51,31 +55,31 @@ OVERPASS_URLS = (
     "https://overpass.kumi.systems/api/interpreter",
 )
 
-# User-Agent identificatorio: lo exige la política de uso de Nominatim/Overpass
-# (no es un secreto ni una credencial: solo identifica la app).
-HTTP_HEADERS = {"User-Agent": "orientador-medicamentos/1.0 (herramienta educativa)"}
-HTTP_TIMEOUT = 15  # segundos; si una API no contesta, la tool degrada con aviso
+# Identifying User-Agent: required by the Nominatim/Overpass usage policy
+# (not a secret nor a credential: it only identifies the app).
+HTTP_HEADERS = {"User-Agent": "medication-advisor/1.0 (educational tool)"}
+HTTP_TIMEOUT = 15  # seconds; if an API does not answer, the tool degrades with a notice
 
-# Presupuesto total de red por invocación de tool: aunque todas las llamadas
-# fallen, la tool contesta en menos de este tiempo (nunca cuelga el chat).
-PRESUPUESTO_API = 22.0  # segundos
-PRESUPUESTO_GEO = 20.0  # segundos para la tool de OpenStreetMap
+# Total network budget per tool invocation: even if every call fails, the
+# tool answers within this time (it never hangs the chat).
+API_BUDGET = 22.0  # seconds
+GEO_BUDGET = 20.0  # seconds for the OpenStreetMap tool
 
-# Reparto del presupuesto geográfico: Overpass es el mejor dato (radio + horarios)
-# pero el más propenso a saturarse, así que acotamos su intento para dejar tiempo
-# al fallback de Nominatim dentro del mismo presupuesto.
+# Split of the geographic budget: Overpass has the best data (radius + opening
+# hours) but is the most prone to saturation, so we cap its attempt to leave
+# time for the Nominatim fallback within the same budget.
 OVERPASS_MAX = 9.0
 NOMINATIM_MAX = 7.0
 
 
-def _restante(inicio: float, limite: float) -> float:
-    """Segundos que quedan del presupuesto (>= 0)."""
-    return max(0.0, limite - (time.monotonic() - inicio))
+def _remaining(start: float, limit: float) -> float:
+    """Seconds left from the budget (>= 0)."""
+    return max(0.0, limit - (time.monotonic() - start))
 
 
 def _get_json(url: str, *, params: dict | None = None, data: dict | None = None,
               timeout: float | None = None) -> dict | list:
-    """GET/POST JSON con timeout. Lanza excepción si la API no contesta o falla."""
+    """GET/POST JSON with timeout. Raises if the API does not answer or fails."""
     t = HTTP_TIMEOUT if timeout is None else max(1.0, timeout)
     if data is not None:
         resp = requests.post(url, data=data, headers=HTTP_HEADERS, timeout=t)
@@ -85,26 +89,26 @@ def _get_json(url: str, *, params: dict | None = None, data: dict | None = None,
     return resp.json()
 
 
-def _load(nombre: str):
-    """Carga un JSON de data/ y lo devuelve como lista."""
-    with open(DATA_DIR / nombre, encoding="utf-8") as f:
+def _load(filename: str):
+    """Loads a JSON from data/ and returns it as a list."""
+    with open(DATA_DIR / filename, encoding="utf-8") as f:
         return json.load(f)
 
 
-def _norm(texto: str) -> str:
-    """Normaliza texto: minúsculas + sin tildes, para comparar sin fallos."""
-    texto = texto.lower().strip()
+def _norm(text: str) -> str:
+    """Normalizes text: lowercase + no accents, to compare without failures."""
+    text = text.lower().strip()
     return "".join(
-        c for c in unicodedata.normalize("NFD", texto)
+        c for c in unicodedata.normalize("NFD", text)
         if unicodedata.category(c) != "Mn"
     )
 
 
 def _detect_lang(*texts: str) -> str:
-    """Detecta 'en' o 'es' a partir de los textos de entrada.
+    """Detects 'en' or 'es' from the input texts.
 
-    Usa domain.i18n como fuente única; con fallback local si el import falla
-    (p. ej. al importar tools.py de forma aislada).
+    Uses domain.i18n as the single source, with a local fallback if the import
+    fails (e.g. when importing tools.py standalone).
     """
     joined = " ".join(t for t in texts if t)
     try:
@@ -130,8 +134,8 @@ def _disclaimer(lang: str) -> str:
     return DISCLAIMER_EN if lang == "en" else DISCLAIMER_ES
 
 
-# Mapa EN -> ES para que el matching de síntomas/condiciones funcione en inglés
-# sin tener que duplicar los JSON (que siguen en español).
+# EN -> ES map so symptom/condition matching also works in English
+# without duplicating the JSON files (which remain in Spanish).
 _EN_TO_ES = {
     "fever": "fiebre", "sore throat": "garganta", "throat": "garganta",
     "headache": "dolor de cabeza", "head hurts": "dolor de cabeza",
@@ -143,7 +147,7 @@ _EN_TO_ES = {
     "nausea": "nausea", "vomit": "vomito", "vomiting": "vomitos",
     "dizziness": "mareo", "dizzy": "mareo", "insomnia": "insomnio",
     "sleepless": "insomnio", "pain": "dolor", "ache": "dolor",
-    # condiciones
+    # conditions
     "pregnancy": "embarazo", "pregnant": "embarazada",
     "breastfeeding": "lactancia", "hypertension": "hipertension",
     "high blood pressure": "tension alta", "kidney": "rinon",
@@ -156,94 +160,94 @@ _EN_TO_ES = {
 
 
 def _expand_en_to_es(desc_norm: str) -> str:
-    """Añade equivalentes en español al texto normalizado para el matching."""
+    """Adds Spanish equivalents to the normalized text for matching."""
     extra = [es for en, es in _EN_TO_ES.items() if en in desc_norm]
     if extra:
         return desc_norm + " " + " ".join(extra)
     return desc_norm
 
 
-# Carga de datasets en memoria (una sola vez al importar el módulo)
-MEDICAMENTOS = _load("medicamentos.json")
-SINTOMAS = _load("sintomas.json")
-INTERACCIONES = _load("interacciones.json")
-CONTRAINDICACIONES = _load("contraindicaciones.json")
-FARMACIAS = _load("farmacias.json")
+# Load datasets into memory (once, at module import)
+MEDICATIONS = _load("medications.json")
+SYMPTOMS = _load("symptoms.json")
+INTERACTIONS = _load("interactions.json")
+CONTRAINDICATIONS = _load("contraindications.json")
+PHARMACIES = _load("pharmacies.json")
 
-# Reglas de dosis pediátrica por principio activo (mg por kg y por toma)
-DOSIS_PEDIATRICA = {
-    "paracetamol": {"mg_kg": 15, "intervalo_h": 6, "max_mg_kg_dia": 60,
-                    "nota": "Jarabe habitual 120 mg/5 ml o 100 mg/ml en gotas"},
-    "ibuprofeno": {"mg_kg": 10, "intervalo_h": 8, "max_mg_kg_dia": 30,
-                   "nota": "Solo a partir de 3-6 meses según presentación. Tomar con comida"},
+# Pediatric dose rules per active ingredient (mg per kg per intake)
+PEDIATRIC_DOSAGE = {
+    "paracetamol": {"mg_kg": 15, "interval_h": 6, "max_mg_per_kg_day": 60,
+                    "note": "Jarabe habitual 120 mg/5 ml o 100 mg/ml en gotas"},
+    "ibuprofeno": {"mg_kg": 10, "interval_h": 8, "max_mg_per_kg_day": 30,
+                   "note": "Solo a partir de 3-6 meses según presentación. Tomar con comida"},
 }
 
-# Mapa principio activo -> lista de alias (nombres comerciales + activo), normalizados
-_ALIAS_MED = {}
-for med in MEDICAMENTOS:
-    alias = {_norm(med["principio_activo"])}
-    for nombre in med.get("nombre_comercial", []):
-        alias.add(_norm(nombre))
-    _ALIAS_MED[_norm(med["principio_activo"])] = sorted(alias)
+# Map active ingredient -> alias list (brand + active names), normalized
+_MED_ALIASES = {}
+for med in MEDICATIONS:
+    aliases = {_norm(med["active_ingredient"])}
+    for brand in med.get("brand_names", []):
+        aliases.add(_norm(brand))
+    _MED_ALIASES[_norm(med["active_ingredient"])] = sorted(aliases)
 
 
-def _buscar_principio_activo(nombre: str) -> str | None:
-    """Dado un nombre (comercial o activo, ES/EN), devuelve el principio activo canónico o None."""
-    n = _norm(nombre)
-    # Alias ingleses comunes -> forma española canónica
+def _find_active_ingredient(name: str) -> str | None:
+    """Given a name (brand or active, ES/EN), returns the canonical active ingredient or None."""
+    n = _norm(name)
+    # Common English aliases -> canonical Spanish form
     _en_alias = {
         "ibuprofen": "ibuprofeno", "acetaminophen": "paracetamol",
         "paracetamol": "paracetamol", "warfarin": "warfarina",
         "aspirin": "acido acetilsalicilico",
     }
     n = _en_alias.get(n, n)
-    for activo, alias in _ALIAS_MED.items():
-        if n == activo or n in alias:
-            return activo
-    # Coincidencia parcial: el nombre aparece dentro de un alias o viceversa
-    for activo, alias in _ALIAS_MED.items():
-        for a in alias:
+    for ingredient, aliases in _MED_ALIASES.items():
+        if n == ingredient or n in aliases:
+            return ingredient
+    # Partial match: the name appears inside an alias or vice versa
+    for ingredient, aliases in _MED_ALIASES.items():
+        for a in aliases:
             if len(n) >= 4 and (n in a or a in n):
-                return activo
+                return ingredient
     return None
 
 
-def _ficha_por_activo(activo: str) -> dict | None:
-    """Devuelve la ficha completa del medicamento a partir del principio activo."""
-    for med in MEDICAMENTOS:
-        if _norm(med["principio_activo"]) == activo:
+def _card_by_ingredient(ingredient: str) -> dict | None:
+    """Returns the full medicine card from the active ingredient."""
+    for med in MEDICATIONS:
+        if _norm(med["active_ingredient"]) == ingredient:
             return med
     return None
 
 
 # ---------------------------------------------------------------------------
-# TOOL 1: analizar_sintomas
+# TOOL 1: analyze_symptoms
 # ---------------------------------------------------------------------------
 @tool
-def analizar_sintomas(descripcion: str, language: str = "auto") -> str:
+def analyze_symptoms(description: str, language: str = "auto") -> str:
     """Analyze free-text symptoms and suggest possible common causes,
     usual over-the-counter medicines, red flags and general advice.
     Analiza síntomas en texto libre y sugiere posibles causas comunes,
     medicamentos de venta libre habituales, señales de alarma y consejo general.
 
     Args:
-        descripcion: Síntomas que describe el usuario / Symptoms described by the user
-            (ej: "tengo fiebre y dolor de garganta" / "I have fever and sore throat").
+        description: Symptoms described by the user / Síntomas que describe el usuario
+            (e.g. "tengo fiebre y dolor de garganta" / "I have fever and sore throat").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Causas posibles, medicación OTC habitual, señales de alarma y consejo.
         Possible causes, usual OTC medication, red flags and advice.
+        Causas posibles, medicación OTC habitual, señales de alarma y consejo.
     """
-    lang = language if language in ("es", "en") else _detect_lang(descripcion)
-    desc = _norm(descripcion)
+    lang = language if language in ("es", "en") else _detect_lang(description)
+    desc = _norm(description)
     desc_match = _expand_en_to_es(desc)
-    encontrados = []
-    for s in SINTOMAS:
-        if any(kw in desc_match for kw in s["palabras_clave"]):
-            encontrados.append(s)
+    matches = []
+    for s in SYMPTOMS:
+        if any(kw in desc_match for kw in s["keywords"]):
+            matches.append(s)
 
-    if not encontrados:
+    if not matches:
         if lang == "en":
             return (
                 "I didn't recognise any specific symptom in the description. "
@@ -260,47 +264,47 @@ def analizar_sintomas(descripcion: str, language: str = "auto") -> str:
             f"pérdida de conciencia, llama al 112. {_disclaimer(lang)}"
         )
 
-    partes = []
-    for s in encontrados[:3]:  # máximo 3 bloques para no saturar
-        causas = "; ".join(
-            f"{c['nombre']}: {c['descripcion']}" for c in s["condiciones_posibles"]
+    sections = []
+    for s in matches[:3]:  # at most 3 blocks so as not to saturate
+        causes = "; ".join(
+            f"{c['name']}: {c['description']}" for c in s["possible_conditions"]
         )
         if lang == "en":
-            partes.append(
+            sections.append(
                 f"· Symptoms related to '{s['id']}':\n"
-                f"  Possible common causes: {causas}.\n"
-                f"  Usual over-the-counter medication: {', '.join(s['medicamentos_otc'])}.\n"
-                f"  ⚠️ See a doctor / go to emergency if: {'; '.join(s['alarmas'])}.\n"
-                f"  Advice: {s['consejo_general']}"
+                f"  Possible common causes: {causes}.\n"
+                f"  Usual over-the-counter medication: {', '.join(s['otc_medicines'])}.\n"
+                f"  ⚠️ See a doctor / go to emergency if: {'; '.join(s['red_flags'])}.\n"
+                f"  Advice: {s['general_advice']}"
             )
         else:
-            partes.append(
+            sections.append(
                 f"· Síntomas relacionados con '{s['id']}':\n"
-                f"  Posibles causas comunes: {causas}.\n"
-                f"  Medicación sin receta habitual: {', '.join(s['medicamentos_otc'])}.\n"
-                f"  ⚠️ Acude al médico/urgencias si: {'; '.join(s['alarmas'])}.\n"
-                f"  Consejo: {s['consejo_general']}"
+                f"  Posibles causas comunes: {causes}.\n"
+                f"  Medicación sin receta habitual: {', '.join(s['otc_medicines'])}.\n"
+                f"  ⚠️ Acude al médico/urgencias si: {'; '.join(s['red_flags'])}.\n"
+                f"  Consejo: {s['general_advice']}"
             )
     if lang == "en":
-        partes.append(
+        sections.append(
             "Remember: this is general guidance, not a diagnosis. "
             "If you get worse or have doubts, ask your doctor or pharmacist. "
             f"{_disclaimer(lang)}"
         )
     else:
-        partes.append(
+        sections.append(
             "Recuerda: esto es orientación general, no un diagnóstico. "
             "Si empeoras o tienes dudas, consulta a tu médico o farmacéutico. "
             f"{_disclaimer(lang)}"
         )
-    return "\n".join(partes)
+    return "\n".join(sections)
 
 
 # ---------------------------------------------------------------------------
-# TOOL 2: buscar_medicamento
+# TOOL 2: search_medication
 # ---------------------------------------------------------------------------
 @tool
-def buscar_medicamento(nombre: str, language: str = "auto") -> str:
+def search_medication(name: str, language: str = "auto") -> str:
     """Look up a medicine card by brand or active ingredient (EN/ES).
     Busca la ficha de un medicamento por nombre comercial o principio activo.
     Devuelve indicaciones, dosis, efectos adversos, advertencias y uso en
@@ -309,185 +313,189 @@ def buscar_medicamento(nombre: str, language: str = "auto") -> str:
     use, and whether it needs a prescription.
 
     Args:
-        nombre: Nombre comercial (ej: "Gelocatil") o principio activo (ej: "paracetamol").
-            Brand name (e.g. "Gelocatil") or active ingredient (e.g. "paracetamol").
+        name: Brand name or active ingredient / Nombre comercial o principio activo
+            (e.g. "Gelocatil" or "paracetamol").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Ficha completa del medicamento o sugerencias si no se encuentra.
         Full medicine card or suggestions if not found.
+        Ficha completa del medicamento o sugerencias si no se encuentra.
     """
-    lang = language if language in ("es", "en") else _detect_lang(nombre)
-    activo = _buscar_principio_activo(nombre)
-    if activo is None:
-        todos = [a for alias in _ALIAS_MED.values() for a in alias]
-        sugerencias = get_close_matches(_norm(nombre), todos, n=3, cutoff=0.6)
+    lang = language if language in ("es", "en") else _detect_lang(name)
+    ingredient = _find_active_ingredient(name)
+    if ingredient is None:
+        all_aliases = [a for aliases in _MED_ALIASES.values() for a in aliases]
+        suggestions = get_close_matches(_norm(name), all_aliases, n=3, cutoff=0.6)
         if lang == "en":
-            extra = f" Did you mean: {', '.join(sugerencias)}?" if sugerencias else ""
+            extra = f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
             return (
-                f"I didn't find '{nombre}' in the local database.{extra} "
+                f"I didn't find '{name}' in the local database.{extra} "
                 f"Try another name or ask your pharmacist. {_disclaimer(lang)}"
             )
-        extra = f" ¿Querías decir: {', '.join(sugerencias)}?" if sugerencias else ""
+        extra = f" ¿Querías decir: {', '.join(suggestions)}?" if suggestions else ""
         return (
-            f"No he encontrado '{nombre}' en la base de datos local.{extra} "
+            f"No he encontrado '{name}' en la base de datos local.{extra} "
             f"Prueba con otro nombre o consulta a tu farmacéutico. {_disclaimer(lang)}"
         )
 
-    med = _ficha_por_activo(activo)
+    med = _card_by_ingredient(ingredient)
     if lang == "en":
-        receta = "Requires a medical prescription" if med["requiere_receta"] else "No prescription needed (OTC)"
+        prescription = ("Requires a medical prescription" if med["requires_prescription"]
+                        else "No prescription needed (OTC)")
         return (
-            f"Medicine card for {med['principio_activo'].upper()} "
-            f"(brand names: {', '.join(med['nombre_comercial'])})\n"
-            f"Category: {med['categoria']}\n"
-            f"Prescription: {receta}\n"
-            f"Indications: {med['indicaciones']}\n"
-            f"Adult dosage: {med['dosis_adulto']}\n"
-            f"Pediatric dosage: {med['dosis_pediatrica']}\n"
-            f"Side effects: {med['efectos_adversos']}\n"
-            f"Warnings: {med['advertencias']}\n"
-            f"Pregnancy: {med['embarazo']}\n"
-            f"Breastfeeding: {med['lactancia']}\n"
+            f"Medicine card for {med['active_ingredient'].upper()} "
+            f"(brand names: {', '.join(med['brand_names'])})\n"
+            f"Category: {med['category']}\n"
+            f"Prescription: {prescription}\n"
+            f"Indications: {med['indications']}\n"
+            f"Adult dosage: {med['adult_dose']}\n"
+            f"Pediatric dosage: {med['pediatric_dose']}\n"
+            f"Side effects: {med['side_effects']}\n"
+            f"Warnings: {med['warnings']}\n"
+            f"Pregnancy: {med['pregnancy']}\n"
+            f"Breastfeeding: {med['breastfeeding']}\n"
             f"{_disclaimer(lang)}"
         )
-    receta = "SÍ requiere receta médica" if med["requiere_receta"] else "NO requiere receta (venta libre)"
+    prescription = ("SÍ requiere receta médica" if med["requires_prescription"]
+                    else "NO requiere receta (venta libre)")
     return (
-        f"Ficha de {med['principio_activo'].upper()} "
-        f"(nombres comerciales: {', '.join(med['nombre_comercial'])})\n"
-        f"Categoría: {med['categoria']}\n"
-        f"Receta: {receta}\n"
-        f"Indicaciones: {med['indicaciones']}\n"
-        f"Dosis adulto: {med['dosis_adulto']}\n"
-        f"Dosis pediátrica: {med['dosis_pediatrica']}\n"
-        f"Efectos adversos: {med['efectos_adversos']}\n"
-        f"Advertencias: {med['advertencias']}\n"
-        f"Embarazo: {med['embarazo']}\n"
-        f"Lactancia: {med['lactancia']}\n"
+        f"Ficha de {med['active_ingredient'].upper()} "
+        f"(nombres comerciales: {', '.join(med['brand_names'])})\n"
+        f"Categoría: {med['category']}\n"
+        f"Receta: {prescription}\n"
+        f"Indicaciones: {med['indications']}\n"
+        f"Dosis adulto: {med['adult_dose']}\n"
+        f"Dosis pediátrica: {med['pediatric_dose']}\n"
+        f"Efectos adversos: {med['side_effects']}\n"
+        f"Advertencias: {med['warnings']}\n"
+        f"Embarazo: {med['pregnancy']}\n"
+        f"Lactancia: {med['breastfeeding']}\n"
         f"{_disclaimer(lang)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# TOOL 3: calcular_dosis
+# TOOL 3: calculate_dose
 # ---------------------------------------------------------------------------
 @tool
-def calcular_dosis(medicamento: str, peso_kg: float, language: str = "auto") -> str:
+def calculate_dose(medication: str, weight_kg: float, language: str = "auto") -> str:
     """Calculate the pediatric dose per intake from weight in kg (EN/ES).
     Calcula la dosis pediátrica por toma a partir del peso en kg
     (regla mg/kg) para paracetamol e ibuprofeno.
 
     Args:
-        medicamento: Nombre del medicamento (paracetamol o ibuprofeno).
-            Medicine name (paracetamol or ibuprofen).
-        peso_kg: Peso del niño en kilogramos. Child weight in kilograms.
+        medication: Medicine name (paracetamol or ibuprofen).
+            Nombre del medicamento (paracetamol o ibuprofeno).
+        weight_kg: Child weight in kilograms. Peso del niño en kilogramos.
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Miligramos por toma, intervalo entre tomas y máximo diario.
         Milligrams per dose, interval and daily maximum.
+        Miligramos por toma, intervalo entre tomas y máximo diario.
     """
-    lang = language if language in ("es", "en") else _detect_lang(medicamento)
-    activo = _buscar_principio_activo(medicamento)
-    if peso_kg <= 0 or peso_kg > 150:
+    lang = language if language in ("es", "en") else _detect_lang(medication)
+    ingredient = _find_active_ingredient(medication)
+    if weight_kg <= 0 or weight_kg > 150:
         if lang == "en":
-            return f"Invalid weight ({peso_kg} kg). Please give the real weight in kilograms. {_disclaimer(lang)}"
-        return f"Peso no válido ({peso_kg} kg). Indica el peso real en kilogramos. {_disclaimer(lang)}"
-    if activo not in DOSIS_PEDIATRICA:
+            return (f"Invalid weight ({weight_kg} kg). Please give the real weight in "
+                    f"kilograms. {_disclaimer(lang)}")
+        return f"Peso no válido ({weight_kg} kg). Indica el peso real en kilogramos. {_disclaimer(lang)}"
+    if ingredient not in PEDIATRIC_DOSAGE:
         if lang == "en":
             return (
-                f"I have no weight-based dosing rule for '{medicamento}'. "
+                f"I have no weight-based dosing rule for '{medication}'. "
                 f"Only available for paracetamol and ibuprofen. "
                 f"For other drugs, follow the leaflet or ask your pediatrician/pharmacist. {_disclaimer(lang)}"
             )
         return (
-            f"No tengo regla de dosis por peso para '{medicamento}'. "
+            f"No tengo regla de dosis por peso para '{medication}'. "
             f"Solo disponible para paracetamol e ibuprofeno. "
             f"Para otros fármacos, sigue el prospecto o consulta al pediatra/farmacéutico. {_disclaimer(lang)}"
         )
-    regla = DOSIS_PEDIATRICA[activo]
-    mg_toma = round(regla["mg_kg"] * peso_kg)
-    max_dia = round(regla["max_mg_kg_dia"] * peso_kg)
+    rule = PEDIATRIC_DOSAGE[ingredient]
+    mg_per_dose = round(rule["mg_kg"] * weight_kg)
+    max_per_day = round(rule["max_mg_per_kg_day"] * weight_kg)
     if lang == "en":
         return (
-            f"Guidance dose of {activo} for {peso_kg} kg: {mg_toma} mg per dose "
-            f"every {regla['intervalo_h']} hours (maximum {max_dia} mg/day). "
-            f"Note: {regla['nota']}. "
+            f"Guidance dose of {ingredient} for {weight_kg} kg: {mg_per_dose} mg per dose "
+            f"every {rule['interval_h']} hours (maximum {max_per_day} mg/day). "
+            f"Note: {rule['note']}. "
             f"Always use a dosing syringe, not household spoons. "
             f"If the child is under 2 years old or has a chronic disease, confirm the dose with the pediatrician. {_disclaimer(lang)}"
         )
     return (
-        f"Dosis orientativa de {activo} para {peso_kg} kg: {mg_toma} mg por toma "
-        f"cada {regla['intervalo_h']} horas (máximo {max_dia} mg/día). "
-        f"Nota: {regla['nota']}. "
+        f"Dosis orientativa de {ingredient} para {weight_kg} kg: {mg_per_dose} mg por toma "
+        f"cada {rule['interval_h']} horas (máximo {max_per_day} mg/día). "
+        f"Nota: {rule['note']}. "
         f"Usa siempre jeringa dosificadora, no cucharas caseras. "
         f"Si el niño tiene menos de 2 años o enfermedad crónica, confirma la dosis con el pediatra. {_disclaimer(lang)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# TOOL 4: verificar_interaccion
+# TOOL 4: check_interaction
 # ---------------------------------------------------------------------------
 @tool
-def verificar_interaccion(medicamento_1: str, medicamento_2: str, language: str = "auto") -> str:
+def check_interaction(medication_1: str, medication_2: str, language: str = "auto") -> str:
     """Check whether two medicines (or medicine + alcohol/grapefruit) interact (EN/ES).
     Comprueba si dos medicamentos (o medicamento + alcohol/pomelo) interactúan.
     Devuelve severidad (leve/moderada/grave), explicación y recomendación.
     Returns severity (mild/moderate/severe), explanation and recommendation.
 
     Args:
-        medicamento_1: Primer fármaco (nombre comercial o principio activo).
-            First drug (brand or active ingredient).
-        medicamento_2: Segundo fármaco, alcohol, zumo de pomelo, etc.
-            Second drug, alcohol, grapefruit juice, etc.
+        medication_1: First drug (brand or active ingredient).
+            Primer fármaco (nombre comercial o principio activo).
+        medication_2: Second drug, alcohol, grapefruit juice, etc.
+            Segundo fármaco, alcohol, zumo de pomelo, etc.
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Descripción de la interacción o aviso de que no hay registro local.
         Interaction description or notice that there is no local record.
+        Descripción de la interacción o aviso de que no hay registro local.
     """
-    lang = language if language in ("es", "en") else _detect_lang(medicamento_1, medicamento_2)
-    a1 = _buscar_principio_activo(medicamento_1)
-    a2 = _buscar_principio_activo(medicamento_2)
-    # Alcohol, pomelo/grapefruit y vitamina K no están en la base de medicamentos: se aceptan tal cual
-    # Normalizar alias ingleses para el lookup (manteniendo `lang` para la salida)
+    lang = language if language in ("es", "en") else _detect_lang(medication_1, medication_2)
+    a1 = _find_active_ingredient(medication_1)
+    a2 = _find_active_ingredient(medication_2)
+    # Alcohol, grapefruit and vitamin K are not in the medicine database: accepted as-is
+    # Normalize English aliases for the lookup (keeping `lang` for the output)
     _lookup_alias = {"grapefruit": "zumo de pomelo", "grapefruit juice": "zumo de pomelo",
                      "warfarin": "warfarina", "ibuprofen": "ibuprofeno",
                      "acetaminophen": "paracetamol"}
-    a1 = a1 or _lookup_alias.get(_norm(medicamento_1), _norm(medicamento_1))
-    a2 = a2 or _lookup_alias.get(_norm(medicamento_2), _norm(medicamento_2))
+    a1 = a1 or _lookup_alias.get(_norm(medication_1), _norm(medication_1))
+    a2 = a2 or _lookup_alias.get(_norm(medication_2), _norm(medication_2))
 
-    for inter in INTERACCIONES:
-        par = {_norm(inter["farmaco_a"]), _norm(inter["farmaco_b"])}
-        if {a1, a2} == par:
-            icono = {"leve": "🟢", "moderada": "🟡", "grave": "🔴"}.get(inter["severidad"], "⚪")
+    for interaction in INTERACTIONS:
+        pair = {_norm(interaction["drug_a"]), _norm(interaction["drug_b"])}
+        if {a1, a2} == pair:
+            icon = {"leve": "🟢", "moderada": "🟡", "grave": "🔴"}.get(interaction["severity"], "⚪")
             if lang == "en":
-                sev_en = {"leve": "MILD", "moderada": "MODERATE", "grave": "SEVERE"}.get(inter["severidad"], inter["severidad"].upper())
+                sev_en = {"leve": "MILD", "moderada": "MODERATE", "grave": "SEVERE"}.get(
+                    interaction["severity"], interaction["severity"].upper())
                 return (
-                    f"{icono} {sev_en} interaction between "
-                    f"{inter['farmaco_a']} and {inter['farmaco_b']}:\n"
-                    f"{inter['descripcion']}\n"
-                    f"Recommendation: {inter['recomendacion']}\n"
+                    f"{icon} {sev_en} interaction between "
+                    f"{interaction['drug_a']} and {interaction['drug_b']}:\n"
+                    f"{interaction['description']}\n"
+                    f"Recommendation: {interaction['recommendation']}\n"
                     f"{_disclaimer(lang)}"
                 )
             return (
-                f"{icono} Interacción {inter['severidad'].upper()} entre "
-                f"{inter['farmaco_a']} y {inter['farmaco_b']}:\n"
-                f"{inter['descripcion']}\n"
-                f"Recomendación: {inter['recomendacion']}\n"
+                f"{icon} Interacción {interaction['severity'].upper()} entre "
+                f"{interaction['drug_a']} y {interaction['drug_b']}:\n"
+                f"{interaction['description']}\n"
+                f"Recomendación: {interaction['recommendation']}\n"
                 f"{_disclaimer(lang)}"
             )
     if lang == "en":
         return (
-            f"There is no documented interaction between '{medicamento_1}' and "
-            f"'{medicamento_2}' in the local database (26 common interactions). "
+            f"There is no documented interaction between '{medication_1}' and "
+            f"'{medication_2}' in the local database (26 common interactions). "
             f"That does not guarantee none exists: always ask your pharmacist "
             f"before combining medicines, especially with anticoagulants, "
             f"antihypertensives or antidepressants. {_disclaimer(lang)}"
         )
     return (
-        f"No hay ninguna interacción documentada entre '{medicamento_1}' y "
-        f"'{medicamento_2}' en la base local (26 interacciones frecuentes). "
+        f"No hay ninguna interacción documentada entre '{medication_1}' y "
+        f"'{medication_2}' en la base local (26 interacciones frecuentes). "
         f"Eso no garantiza que no exista: consulta siempre al farmacéutico "
         f"antes de combinar medicamentos, sobre todo con anticoagulantes, "
         f"antihipertensivos o antidepresivos. {_disclaimer(lang)}"
@@ -495,10 +503,10 @@ def verificar_interaccion(medicamento_1: str, medicamento_2: str, language: str 
 
 
 # ---------------------------------------------------------------------------
-# TOOL 5: consultar_contraindicacion
+# TOOL 5: check_contraindication
 # ---------------------------------------------------------------------------
 @tool
-def consultar_contraindicacion(medicamento: str, condicion: str, language: str = "auto") -> str:
+def check_contraindication(medication: str, condition: str, language: str = "auto") -> str:
     """Check whether a medicine is problematic with a patient condition (EN/ES).
     Comprueba si un medicamento es problemático con una condición del paciente:
     embarazo, lactancia, niños, hipertensión, úlcera/gastritis, riñón, hígado,
@@ -507,71 +515,72 @@ def consultar_contraindicacion(medicamento: str, condicion: str, language: str =
     liver, asthma, diabetes, anticoagulation, glaucoma or advanced age.
 
     Args:
-        medicamento: Nombre comercial o principio activo. Brand or active ingredient.
-        condicion: Condición del paciente (ej: "embarazo", "hipertensión", "mi hijo de 5 años").
-            Patient condition (e.g. "pregnancy", "hypertension", "my 5-year-old child").
+        medication: Brand or active ingredient. Nombre comercial o principio activo.
+        condition: Patient condition (e.g. "pregnancy", "hypertension", "my 5-year-old child").
+            Condición del paciente (ej: "embarazo", "hipertensión", "mi hijo de 5 años").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Advertencias específicas y alternativas habituales más seguras.
         Specific warnings and usually safer alternatives.
+        Advertencias específicas y alternativas habituales más seguras.
     """
-    lang = language if language in ("es", "en") else _detect_lang(medicamento, condicion)
-    cond_n = _expand_en_to_es(_norm(condicion))
-    entrada = None
-    for c in CONTRAINDICACIONES:
-        if any(kw in cond_n for kw in c["palabras_clave"]):
-            entrada = c
+    lang = language if language in ("es", "en") else _detect_lang(medication, condition)
+    cond_norm = _expand_en_to_es(_norm(condition))
+    entry = None
+    for c in CONTRAINDICATIONS:
+        if any(kw in cond_norm for kw in c["keywords"]):
+            entry = c
             break
-    if entrada is None:
-        disponibles = ", ".join(c["condicion"] for c in CONTRAINDICACIONES)
+    if entry is None:
+        available = ", ".join(c["condition"] for c in CONTRAINDICATIONS)
         if lang == "en":
             return (
-                f"I don't recognise the condition '{condicion}'. "
-                f"Available conditions: {disponibles}. {_disclaimer(lang)}"
+                f"I don't recognise the condition '{condition}'. "
+                f"Available conditions: {available}. {_disclaimer(lang)}"
             )
         return (
-            f"No reconozco la condición '{condicion}'. "
-            f"Condiciones disponibles: {disponibles}. {_disclaimer(lang)}"
+            f"No reconozco la condición '{condition}'. "
+            f"Condiciones disponibles: {available}. {_disclaimer(lang)}"
         )
 
-    activo = _buscar_principio_activo(medicamento)
-    nombre_mostrar = activo or medicamento
-    evitar_n = {_norm(m) for m in entrada["evitar"]}
-    precaucion_n = {_norm(m) for m in entrada["precaucion"]}
+    ingredient = _find_active_ingredient(medication)
+    display_name = ingredient or medication
+    avoid_norm = {_norm(m) for m in entry["avoid"]}
+    caution_norm = {_norm(m) for m in entry["caution"]}
 
-    if activo and _norm(activo) in evitar_n:
-        nivel = "🔴 AVOID" if lang == "en" else "🔴 EVITAR"
-    elif activo and _norm(activo) in precaucion_n:
-        nivel = "🟡 CAUTION" if lang == "en" else "🟡 PRECAUCIÓN"
+    if ingredient and _norm(ingredient) in avoid_norm:
+        level = "🔴 AVOID" if lang == "en" else "🔴 EVITAR"
+    elif ingredient and _norm(ingredient) in caution_norm:
+        level = "🟡 CAUTION" if lang == "en" else "🟡 PRECAUCIÓN"
     else:
-        nivel = "🟢 No recorded restriction for this condition" if lang == "en" else "🟢 Sin restricción registrada para esta condición"
+        level = ("🟢 No recorded restriction for this condition" if lang == "en"
+                 else "🟢 Sin restricción registrada para esta condición")
 
     if lang == "en":
         return (
-            f"{nivel}: {nombre_mostrar} with {entrada['condicion']}.\n"
-            f"Context: {entrada['descripcion']}.\n"
-            f"Medicines to avoid: {', '.join(entrada['evitar']) or '—'}.\n"
-            f"Use with caution: {', '.join(entrada['precaucion']) or '—'}.\n"
-            f"Usually safer alternatives: {', '.join(entrada['seguros_habituales']) or 'ask your doctor'}.\n"
-            f"Note: {entrada['nota']}\n"
+            f"{level}: {display_name} with {entry['condition']}.\n"
+            f"Context: {entry['description']}.\n"
+            f"Medicines to avoid: {', '.join(entry['avoid']) or '—'}.\n"
+            f"Use with caution: {', '.join(entry['caution']) or '—'}.\n"
+            f"Usually safer alternatives: {', '.join(entry['usually_safe']) or 'ask your doctor'}.\n"
+            f"Note: {entry['note']}\n"
             f"{_disclaimer(lang)}"
         )
     return (
-        f"{nivel}: {nombre_mostrar} con {entrada['condicion']}.\n"
-        f"Contexto: {entrada['descripcion']}.\n"
-        f"Medicamentos a evitar: {', '.join(entrada['evitar']) or '—'}.\n"
-        f"Usar con precaución: {', '.join(entrada['precaucion']) or '—'}.\n"
-        f"Alternativas habituales más seguras: {', '.join(entrada['seguros_habituales']) or 'consultar al médico'}.\n"
-        f"Nota: {entrada['nota']}\n"
+        f"{level}: {display_name} con {entry['condition']}.\n"
+        f"Contexto: {entry['description']}.\n"
+        f"Medicamentos a evitar: {', '.join(entry['avoid']) or '—'}.\n"
+        f"Usar con precaución: {', '.join(entry['caution']) or '—'}.\n"
+        f"Alternativas habituales más seguras: {', '.join(entry['usually_safe']) or 'consultar al médico'}.\n"
+        f"Nota: {entry['note']}\n"
         f"{_disclaimer(lang)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# TOOL 6: evaluar_urgencia (bilingüe EN/ES)
+# TOOL 6: assess_urgency (bilingual EN/ES)
 # ---------------------------------------------------------------------------
-_REGLAS_URGENCIA = [
+_URGENCY_RULES = [
     ("112/urgencias",
      ["dolor en el pecho", "dolor de pecho", "duele el pecho", "dolor toracico",
       "opresion en el pecho", "presion en el pecho", "dolor de corazon",
@@ -606,39 +615,39 @@ _REGLAS_URGENCIA = [
 
 
 @tool
-def evaluar_urgencia(descripcion: str, language: str = "auto") -> str:
+def assess_urgency(description: str, language: str = "auto") -> str:
     """Assess urgency level with triage rules (EN/ES).
     Evalúa el nivel de urgencia de unos síntomas con reglas de triaje:
     112/urgencias, médico en 24-48 h, o autocuidado con medicación sin receta.
     112/emergency, doctor in 24-48 h, or self-care with OTC medication.
 
     Args:
-        descripcion: Síntomas que describe el usuario. Symptoms described by the user.
+        description: Symptoms described by the user. Síntomas que describe el usuario.
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Nivel de urgencia (🔴 🟡 🟢), motivo y qué hacer.
         Urgency level (🔴 🟡 🟢), reason and what to do.
+        Nivel de urgencia (🔴 🟡 🟢), motivo y qué hacer.
     """
-    lang = language if language in ("es", "en") else _detect_lang(descripcion)
-    desc = _norm(descripcion)
-    for nivel, claves, accion in _REGLAS_URGENCIA:
-        if any(k in desc for k in claves):
-            icono = "🔴" if "112" in nivel else "🟡"
+    lang = language if language in ("es", "en") else _detect_lang(description)
+    desc = _norm(description)
+    for level, keys, action in _URGENCY_RULES:
+        if any(k in desc for k in keys):
+            icon = "🔴" if "112" in level else "🟡"
             if lang == "en":
-                nivel_en = "112/emergency" if "112" in nivel else "doctor within 24-48 h"
-                accion_en = (
+                level_en = "112/emergency" if "112" in level else "doctor within 24-48 h"
+                action_en = (
                     "Red flags detected. Call 112 / go to emergency immediately."
-                    if "112" in nivel else
+                    if "112" in level else
                     "You should see a doctor within 24-48 h (health center or pediatrician)."
                 )
                 return (
-                    f"{icono} Level: {nivel_en}.\nReason: {accion_en}\n"
+                    f"{icon} Level: {level_en}.\nReason: {action_en}\n"
                     f"Meanwhile: do not drive if you feel dizzy, ask someone nearby for help "
                     f"and bring your medication list.\n{_disclaimer(lang)}"
                 )
             return (
-                f"{icono} Nivel: {nivel}.\nMotivo: {accion}\n"
+                f"{icon} Nivel: {level}.\nMotivo: {action}\n"
                 f"Mientras tanto: no conduzcas si estás mareado, pide ayuda a alguien cercano "
                 f"y lleva la lista de medicamentos que tomas.\n{_disclaimer(lang)}"
             )
@@ -660,108 +669,108 @@ def evaluar_urgencia(descripcion: str, language: str = "auto") -> str:
 
 
 # ---------------------------------------------------------------------------
-# TOOL 7: buscar_farmacia
+# TOOL 7: find_pharmacy
 # ---------------------------------------------------------------------------
 @tool
-def buscar_farmacia(ubicacion: str, language: str = "auto") -> str:
+def find_pharmacy(location: str, language: str = "auto") -> str:
     """Search pharmacies (simulated) by city (EN/ES).
     Busca farmacias (simulado) por ciudad. Si se pide 'guardia' o '24 horas',
     filtra solo las de guardia. If 'on duty' or '24 hours' is requested,
     filters only on-duty ones.
 
     Args:
-        ubicacion: Ciudad o zona (ej: "Madrid", "farmacia de guardia en Barcelona").
-            City or area (e.g. "Madrid", "on-duty pharmacy in Barcelona").
+        location: City or area (e.g. "Madrid", "on-duty pharmacy in Barcelona").
+            Ciudad o zona (ej: "Madrid", "farmacia de guardia en Barcelona").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Lista de farmacias con dirección, teléfono y horario.
         List of pharmacies with address, phone and hours.
+        Lista de farmacias con dirección, teléfono y horario.
     """
-    lang = language if language in ("es", "en") else _detect_lang(ubicacion)
-    ubi = _norm(ubicacion)
-    solo_guardia = (
-        "guardia" in ubi or "24 horas" in ubi or "24h" in ubi
-        or "on duty" in ubi or "on-duty" in ubi or "24 hours" in ubi or "24-hour" in ubi
+    lang = language if language in ("es", "en") else _detect_lang(location)
+    loc = _norm(location)
+    duty_only = (
+        "guardia" in loc or "24 horas" in loc or "24h" in loc
+        or "on duty" in loc or "on-duty" in loc or "24 hours" in loc or "24-hour" in loc
     )
-    candidatas = [
-        f for f in FARMACIAS
-        if _norm(f["ciudad"]) in ubi or _norm(f["nombre"]) in ubi or _norm(f["direccion"]) in ubi
-        or ubi in _norm(f["ciudad"])
+    candidates = [
+        f for f in PHARMACIES
+        if _norm(f["city"]) in loc or _norm(f["name"]) in loc or _norm(f["address"]) in loc
+        or loc in _norm(f["city"])
     ]
-    if solo_guardia:
-        candidatas = [f for f in candidatas if f["guardia"]]
-    if not candidatas:  # sin filtro de ciudad: mostrar las de guardia
-        candidatas = [f for f in FARMACIAS if f["guardia"]] if solo_guardia else FARMACIAS[:4]
+    if duty_only:
+        candidates = [f for f in candidates if f["on_duty"]]
+    if not candidates:  # no city filter: show the on-duty ones
+        candidates = [f for f in PHARMACIES if f["on_duty"]] if duty_only else PHARMACIES[:4]
 
-    lineas = []
-    for f in candidatas[:5]:
-        marca = " 🌙 ON DUTY 24h" if (f["guardia"] and lang == "en") else (" 🌙 DE GUARDIA 24h" if f["guardia"] else "")
-        lineas.append(
-            f"· {f['nombre']}{marca}\n  {f['direccion']} | Tel: {f['telefono']} | {f['horario']}"
+    lines = []
+    for f in candidates[:5]:
+        mark = " 🌙 ON DUTY 24h" if (f["on_duty"] and lang == "en") else (" 🌙 DE GUARDIA 24h" if f["on_duty"] else "")
+        lines.append(
+            f"· {f['name']}{mark}\n  {f['address']} | Tel: {f['phone']} | {f['opening_hours']}"
         )
     if lang == "en":
-        lineas.append(
+        lines.append(
             "Simulated demo data. For real on-duty pharmacies, "
             f"check your official pharmacists' association or dial 010/012 in your city. {_disclaimer(lang)}"
         )
     else:
-        lineas.append(
+        lines.append(
             "Datos simulados de demostración. Para farmacias de guardia reales, "
             f"consulta a tu colegio oficial de farmacéuticos o el 010/012 de tu ciudad. {_disclaimer(lang)}"
         )
-    return "\n".join(lineas)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# TOOL 8: calcular (parser seguro con numexpr)
+# TOOL 8: calculate (safe numexpr parser)
 # ---------------------------------------------------------------------------
 @tool
-def calcular(expresion: str, language: str = "auto") -> str:
+def calculate(expression: str, language: str = "auto") -> str:
     """Evaluate a math expression safely (EN/ES).
     Evalúa una expresión matemática de forma segura (útil para dosis,
     conversiones mg/ml o cálculos de tomas).
 
     Args:
-        expresion: Expresión matemática (ej: "15*22", "120/5", "(500*3)/7").
-            Math expression (e.g. "15*22", "120/5", "(500*3)/7").
+        expression: Math expression (e.g. "15*22", "120/5", "(500*3)/7").
+            Expresión matemática (ej: "15*22", "120/5", "(500*3)/7").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Resultado del cálculo o mensaje de error. Calculation result or error message.
+        Calculation result or error message. Resultado del cálculo o mensaje de error.
     """
-    lang = language if language in ("es", "en") else _detect_lang(expresion)
+    lang = language if language in ("es", "en") else _detect_lang(expression)
     import numexpr
-    expr = expresion.strip().replace(",", ".").replace("×", "*").replace("÷", "/")
-    permitidos = set("0123456789+-*/(). %")
-    if not expr or any(c not in permitidos for c in expr):
+    expr = expression.strip().replace(",", ".").replace("×", "*").replace("÷", "/")
+    allowed = set("0123456789+-*/(). %")
+    if not expr or any(c not in allowed for c in expr):
         if lang == "en":
             return (
-                f"Invalid expression: '{expresion}'. "
+                f"Invalid expression: '{expression}'. "
                 f"Use only numbers and operators + - * / ( ) % (e.g. '15*22'). {_disclaimer(lang)}"
             )
         return (
-            f"Expresión no válida: '{expresion}'. "
+            f"Expresión no válida: '{expression}'. "
             f"Usa solo números y operadores + - * / ( ) % (ej: '15*22'). {_disclaimer(lang)}"
         )
     try:
-        resultado = float(numexpr.evaluate(expr))
-        if resultado.is_integer():
-            resultado = int(resultado)
+        result = float(numexpr.evaluate(expr))
+        if result.is_integer():
+            result = int(result)
         if lang == "en":
-            return f"Result of '{expresion}': {resultado}\n{_disclaimer(lang)}"
-        return f"Resultado de '{expresion}': {resultado}\n{_disclaimer(lang)}"
+            return f"Result of '{expression}': {result}\n{_disclaimer(lang)}"
+        return f"Resultado de '{expression}': {result}\n{_disclaimer(lang)}"
     except Exception as e:
         if lang == "en":
-            return f"Error evaluating '{expresion}': {e}\n{_disclaimer(lang)}"
-        return f"Error evaluando '{expresion}': {e}\n{_disclaimer(lang)}"
+            return f"Error evaluating '{expression}': {e}\n{_disclaimer(lang)}"
+        return f"Error evaluando '{expression}': {e}\n{_disclaimer(lang)}"
 
 
 # ---------------------------------------------------------------------------
-# TOOL 9: consultar_farmacovigilancia  ->  API internet #1 (openFDA, nube NIH)
+# TOOL 9: query_pharmacovigilance  ->  internet API #1 (openFDA, NIH cloud)
 # ---------------------------------------------------------------------------
-# Principio activo en español (base local) -> nombre genérico USAN que usa openFDA
-_USAN_POR_ACTIVO = {
+# Active ingredient in Spanish (local base) -> USAN generic name used by openFDA
+_USAN_BY_INGREDIENT = {
     "paracetamol": "acetaminophen",
     "acido acetilsalicilico": "aspirin",
     "ibuprofeno": "ibuprofen",
@@ -783,65 +792,65 @@ _USAN_POR_ACTIVO = {
 }
 
 
-def _terminos_openfda(activo: str) -> list[str]:
-    """Candidatos de búsqueda para openFDA (USAN, marca y nombre local)."""
-    n = _norm(activo)
-    terminos = []
-    usan = _USAN_POR_ACTIVO.get(n)
+def _openfda_terms(ingredient: str) -> list[str]:
+    """Search candidates for openFDA (USAN, brand and local name)."""
+    n = _norm(ingredient)
+    terms = []
+    usan = _USAN_BY_INGREDIENT.get(n)
     if usan:
-        terminos.append(usan)
-    # Marca local conocida (p. ej. "augmentin" para amoxicilina+clavulánico)
-    for med in MEDICAMENTOS:
-        if _norm(med["principio_activo"]) == n:
-            for marca in med.get("nombre_comercial", []):
-                terminos.append(_norm(marca))
+        terms.append(usan)
+    # Known local brand (e.g. "augmentin" for amoxicillin+clavulanate)
+    for med in MEDICATIONS:
+        if _norm(med["active_ingredient"]) == n:
+            for brand in med.get("brand_names", []):
+                terms.append(_norm(brand))
             break
-    terminos.append(n)
-    # Sin duplicados, conservando el orden
-    vistos, orden = set(), []
-    for t in terminos:
-        if t and t not in vistos:
-            vistos.add(t)
-            orden.append(t)
-    return orden
+    terms.append(n)
+    # No duplicates, keeping the order
+    seen, ordered = set(), []
+    for t in terms:
+        if t and t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
 
 
-def _buscar_en_openfda(activo: str) -> tuple[dict, str] | None:
-    """Consulta openFDA (FAERS) hasta encontrar reportes para el fármaco.
+def _search_openfda(ingredient: str) -> tuple[dict, str] | None:
+    """Queries openFDA (FAERS) until it finds reports for the drug.
 
-    Prueba varios campos exactos (genérico, medicinalproduct, marca) para
-    distintos nombres candidatos, dentro de un presupuesto de tiempo.
-    Devuelve (payload, término_acertado) o None.
+    Tries several exact fields (generic, medicinalproduct, brand) for
+    different candidate names, within a time budget.
+    Returns (payload, matched_term) or None.
     """
-    campos = (
+    fields = (
         "patient.drug.openfda.generic_name",
         "patient.drug.medicinalproduct",
         "patient.drug.openfda.brand_name",
     )
-    inicio = time.monotonic()
-    for termino in _terminos_openfda(activo)[:3]:
-        for campo in campos:
-            quedan = _restante(inicio, PRESUPUESTO_API)
-            if quedan < 2.0:
+    start = time.monotonic()
+    for term in _openfda_terms(ingredient)[:3]:
+        for field in fields:
+            remaining = _remaining(start, API_BUDGET)
+            if remaining < 2.0:
                 return None
             try:
                 payload = _get_json(
                     OPENFDA_EVENT_URL,
                     params={
-                        "search": f'{campo}:"{termino.upper()}"',
+                        "search": f'{field}:"{term.upper()}"',
                         "limit": 100,
                     },
-                    timeout=min(HTTP_TIMEOUT, quedan),
+                    timeout=min(HTTP_TIMEOUT, remaining),
                 )
             except Exception:
                 continue
             if isinstance(payload, dict) and payload.get("results"):
-                return payload, termino.upper()
+                return payload, term.upper()
     return None
 
 
 @tool
-def consultar_farmacovigilancia(nombre: str, language: str = "auto") -> str:
+def query_pharmacovigilance(name: str, language: str = "auto") -> str:
     """Look up real-world adverse-event reports for a medicine (API internet #1: openFDA).
     Busca notificaciones de farmacovigilancia (efectos adversos declarados) de un
     medicamento en la API pública openFDA / FAERS (servicio en la nube del NIH,
@@ -851,235 +860,235 @@ def consultar_farmacovigilancia(nombre: str, language: str = "auto") -> str:
     outcomes and the causality caveat.
 
     Args:
-        nombre: Nombre comercial o principio activo (ej: "paracetamol", "Gelocatil").
-            Brand or active ingredient (e.g. "ibuprofen", "Advil").
+        name: Brand or active ingredient (e.g. "paracetamol", "Gelocatil").
+            Nombre comercial o principio activo (ej: "paracetamol", "Gelocatil").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Resumen de farmacovigilancia o aviso de que no hay reportes / la API no está
-        disponible. Pharmacovigilance summary, or a notice if there are no reports
-        or the API is unreachable.
+        Pharmacovigilance summary, or a notice if there are no reports or the API
+        is unreachable. Resumen de farmacovigilancia o aviso de que no hay
+        reportes / la API no está disponible.
     """
-    lang = language if language in ("es", "en") else _detect_lang(nombre)
-    activo = _buscar_principio_activo(nombre) or nombre
+    lang = language if language in ("es", "en") else _detect_lang(name)
+    ingredient = _find_active_ingredient(name) or name
 
     try:
-        busqueda = _buscar_en_openfda(activo)
+        search = _search_openfda(ingredient)
     except Exception:
-        busqueda = None
+        search = None
 
-    if busqueda is None:
+    if search is None:
         if lang == "en":
             return (
-                f"No adverse-event reports found in openFDA/FAERS for '{nombre}'. "
+                f"No adverse-event reports found in openFDA/FAERS for '{name}'. "
                 f"That does not mean the medicine is safe or unsafe: the database only "
                 f"contains what has been voluntarily reported. "
                 f"Check the leaflet or ask your pharmacist. {_disclaimer(lang)}"
             )
         return (
             f"No he encontrado notificaciones de farmacovigilancia en openFDA/FAERS para "
-            f"'{nombre}'. Eso no significa que el medicamento sea seguro o peligroso: la "
+            f"'{name}'. Eso no significa que el medicamento sea seguro o peligroso: la "
             f"base solo recoge lo que se ha declarado de forma voluntaria. Revisa el "
             f"prospecto o consulta al farmacéutico. {_disclaimer(lang)}"
         )
 
-    payload, termino = busqueda
-    resultados = payload.get("results", [])
-    total = payload.get("meta", {}).get("results", {}).get("total", len(resultados))
+    payload, term = search
+    reports = payload.get("results", [])
+    total = payload.get("meta", {}).get("results", {}).get("total", len(reports))
 
-    # Recuento de reacciones y desenlaces en la muestra recuperada
-    reacciones: dict[str, int] = {}
-    desenlaces: dict[str, int] = {}
-    graves = 0
-    for r in resultados:
+    # Count of reactions and outcomes in the retrieved sample
+    reaction_counts: dict[str, int] = {}
+    outcome_counts: dict[str, int] = {}
+    serious_count = 0
+    for r in reports:
         if str(r.get("serious")) == "1":
-            graves += 1
-        for reac in r.get("patient", {}).get("reaction", []) or []:
-            pt = (reac.get("reactionmeddrapt") or "").strip()
+            serious_count += 1
+        for reaction in r.get("patient", {}).get("reaction", []) or []:
+            pt = (reaction.get("reactionmeddrapt") or "").strip()
             if pt:
-                reacciones[pt] = reacciones.get(pt, 0) + 1
-        desenlace = (r.get("patient", {}).get("patientoutcome") or "").strip()
-        if desenlace:
-            etiqueta = {"DE": "recovered/resolved", "LT": "life-threatening",
-                        "HO": "hospitalization", "DS": "death", "OT": "other"}.get(
-                desenlace, desenlace)
-            desenlaces[etiqueta] = desenlaces.get(etiqueta, 0) + 1
+                reaction_counts[pt] = reaction_counts.get(pt, 0) + 1
+        outcome_code = (r.get("patient", {}).get("patientoutcome") or "").strip()
+        if outcome_code:
+            label = {"DE": "recovered/resolved", "LT": "life-threatening",
+                     "HO": "hospitalization", "DS": "death", "OT": "other"}.get(
+                outcome_code, outcome_code)
+            outcome_counts[label] = outcome_counts.get(label, 0) + 1
 
-    top_reacciones = sorted(reacciones.items(), key=lambda kv: kv[1], reverse=True)[:5]
-    top_desenlaces = sorted(desenlaces.items(), key=lambda kv: kv[1], reverse=True)[:3]
-    muestra = len(resultados)
+    top_reactions = sorted(reaction_counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    top_outcomes = sorted(outcome_counts.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    sample_size = len(reports)
 
     if lang == "en":
-        lineas = [
-            f"Pharmacovigilance report for {termino} (source: openFDA / FAERS, API internet).",
+        lines = [
+            f"Pharmacovigilance report for {term} (source: openFDA / FAERS, API internet).",
             f"· Total adverse-event reports in the database: {total:,}",
-            f"· Sample analysed: {muestra} reports ({graves} marked serious).",
+            f"· Sample analysed: {sample_size} reports ({serious_count} marked serious).",
             "· Most frequent reactions in the sample:",
         ]
-        lineas += [f"    - {r} ({c})" for r, c in top_reacciones] or ["    - not reported"]
-        if top_desenlaces:
-            lineas.append("· Outcomes in the sample: " + ", ".join(
-                f"{k}: {v}" for k, v in top_desenlaces))
-        lineas.append(
+        lines += [f"    - {r} ({c})" for r, c in top_reactions] or ["    - not reported"]
+        if top_outcomes:
+            lines.append("· Outcomes in the sample: " + ", ".join(
+                f"{k}: {v}" for k, v in top_outcomes))
+        lines.append(
             "· Reading: these are spontaneous reports, correlation does not imply "
             "causation, and under-reporting is common. Not a substitute for the "
             f"leaflet or your doctor. {_disclaimer(lang)}"
         )
-        return "\n".join(lineas)
+        return "\n".join(lines)
 
-    lineas = [
-        f"Informe de farmacovigilancia de {termino} (fuente: openFDA / FAERS, API internet).",
+    lines = [
+        f"Informe de farmacovigilancia de {term} (fuente: openFDA / FAERS, API internet).",
         f"· Total de notificaciones de reacciones adversas en la base: {total:,}",
-        f"· Muestra analizada: {muestra} notificaciones ({graves} marcadas como graves).",
+        f"· Muestra analizada: {sample_size} notificaciones ({serious_count} marcadas como graves).",
         "· Reacciones más frecuentes en la muestra:",
     ]
-    lineas += [f"    - {r} ({c})" for r, c in top_reacciones] or ["    - no informadas"]
-    if top_desenlaces:
-        lineas.append("· Desenlace en la muestra: " + ", ".join(
-            f"{k}: {v}" for k, v in top_desenlaces))
-    lineas.append(
+    lines += [f"    - {r} ({c})" for r, c in top_reactions] or ["    - no informadas"]
+    if top_outcomes:
+        lines.append("· Desenlace en la muestra: " + ", ".join(
+            f"{k}: {v}" for k, v in top_outcomes))
+    lines.append(
         "· Cómo leerlo: son notificaciones espontáneas, la correlación no implica "
         "causalidad y el subregistro es habitual. No sustituye al prospecto ni a "
         f"tu médico. {_disclaimer(lang)}"
     )
-    return "\n".join(lineas)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# TOOL 10: buscar_farmacia_real  ->  API internet #2 (OpenStreetMap, nube OSM)
+# TOOL 10: find_real_pharmacy  ->  internet API #2 (OpenStreetMap, OSM cloud)
 # ---------------------------------------------------------------------------
-def _geocodificar(direccion: str, timeout: float | None = None) -> tuple[float, float, str, str | None] | None:
-    """(lat, lon, nombre, localidad) de una dirección vía Nominatim (sin API key)."""
-    datos = _get_json(
+def _geocode(address: str, timeout: float | None = None) -> tuple[float, float, str, str | None] | None:
+    """(lat, lon, name, locality) of an address via Nominatim (no API key)."""
+    data = _get_json(
         NOMINATIM_URL,
-        params={"q": direccion, "format": "jsonv2", "limit": 1, "addressdetails": 1},
+        params={"q": address, "format": "jsonv2", "limit": 1, "addressdetails": 1},
         timeout=timeout,
     )
-    if not datos:
+    if not data:
         return None
-    primero = datos[0]
-    addr = primero.get("address", {}) or {}
-    localidad = next(
+    first = data[0]
+    addr = first.get("address", {}) or {}
+    locality = next(
         (addr[k] for k in ("city", "town", "village", "municipality", "suburb", "county")
          if addr.get(k)),
         None,
     )
-    return (float(primero["lat"]), float(primero["lon"]),
-            primero.get("display_name", direccion), localidad)
+    return (float(first["lat"]), float(first["lon"]),
+            first.get("display_name", address), locality)
 
 
-def _farmacias_overpass(lat: float, lon: float, radio_m: int = 3000,
-                         tiempo_max: float = HTTP_TIMEOUT) -> list[dict]:
-    """Farmacias (amenity=pharmacy) cercanas vía Overpass API, con varios mirrors.
+def _overpass_pharmacies(lat: float, lon: float, radius_m: int = 3000,
+                         max_time: float = HTTP_TIMEOUT) -> list[dict]:
+    """Nearby pharmacies (amenity=pharmacy) via Overpass API, with several mirrors.
 
-    `tiempo_max` limita el tiempo total de la búsqueda (presupuesto de la tool).
+    `max_time` limits the total search time (the tool's budget).
     """
-    consulta = (
+    query = (
         f'[out:json][timeout:25];(node["amenity"="pharmacy"]'
-        f"(around:{radio_m},{lat},{lon}););out center tags 15;"
+        f"(around:{radius_m},{lat},{lon}););out center tags 15;"
     )
-    inicio = time.monotonic()
-    ultimo_error = None
-    # Pasada 1: los tres mirrors. Pasada 2: repetimos el principal (suele ser
-    # un 504/429 transitorio por saturación) si queda presupuesto.
-    orden = list(OVERPASS_URLS) + [OVERPASS_URLS[0]]
-    for posicion, endpoint in enumerate(orden):
-        quedan = _restante(inicio, tiempo_max)
-        if quedan < 2.0:
+    start = time.monotonic()
+    last_error = None
+    # Pass 1: the three mirrors. Pass 2: repeat the main one (usually a
+    # transient 504/429 due to saturation) if budget remains.
+    order = list(OVERPASS_URLS) + [OVERPASS_URLS[0]]
+    for idx, endpoint in enumerate(order):
+        remaining = _remaining(start, max_time)
+        if remaining < 2.0:
             break
         try:
-            payload = _get_json(endpoint, data={"data": consulta},
-                                timeout=min(HTTP_TIMEOUT, quedan))
-        except Exception as e:  # mirror caído o saturado -> probamos el siguiente
-            ultimo_error = e
-            if posicion == len(OVERPASS_URLS) - 1 and _restante(inicio, tiempo_max) > 4.0:
+            payload = _get_json(endpoint, data={"data": query},
+                                timeout=min(HTTP_TIMEOUT, remaining))
+        except Exception as e:  # mirror down or saturated -> try the next one
+            last_error = e
+            if idx == len(OVERPASS_URLS) - 1 and _remaining(start, max_time) > 4.0:
                 time.sleep(1.5)
             continue
-        elementos = payload.get("elements") if isinstance(payload, dict) else None
-        if elementos is None:
+        elements = payload.get("elements") if isinstance(payload, dict) else None
+        if elements is None:
             continue
-        farmacias = []
-        for el in elementos:
+        pharmacies = []
+        for el in elements:
             tags = el.get("tags", {}) or {}
-            flon = el.get("lon", el.get("center", {}).get("lon"))
-            flat = el.get("lat", el.get("center", {}).get("lat"))
-            farmacias.append({
-                "nombre": tags.get("name", "Farmacia"),
-                "direccion": " ".join(filter(None, [
+            elon = el.get("lon", el.get("center", {}).get("lon"))
+            elat = el.get("lat", el.get("center", {}).get("lat"))
+            pharmacies.append({
+                "name": tags.get("name", "Farmacia"),
+                "address": " ".join(filter(None, [
                     tags.get("addr:street", ""),
                     tags.get("addr:housenumber", ""),
                 ])).strip() or tags.get("addr:full", ""),
-                "ciudad": tags.get("addr:city", ""),
-                "telefono": tags.get("phone", tags.get("contact:phone", "")),
-                "horario": tags.get("opening_hours", ""),
-                "lat": float(flat) if flat is not None else None,
-                "lon": float(flon) if flon is not None else None,
+                "city": tags.get("addr:city", ""),
+                "phone": tags.get("phone", tags.get("contact:phone", "")),
+                "opening_hours": tags.get("opening_hours", ""),
+                "lat": float(elat) if elat is not None else None,
+                "lon": float(elon) if elon is not None else None,
             })
-        if farmacias:
-            return farmacias
-    if ultimo_error:
-        raise ultimo_error
+        if pharmacies:
+            return pharmacies
+    if last_error:
+        raise last_error
     return []
 
 
-def _farmacias_nominatim(direccion: str, localidad: str | None = None,
-                         tiempo_max: float = HTTP_TIMEOUT) -> list[dict]:
-    """Fallback: busca farmacias directamente en Nominatim (sin Overpass).
+def _nominatim_pharmacies(address: str, locality: str | None = None,
+                          max_time: float = HTTP_TIMEOUT) -> list[dict]:
+    """Fallback: search pharmacies directly in Nominatim (without Overpass).
 
-    Útil cuando Overpass está saturado o la dirección no se geocodifica bien.
-    Solo conserva resultados cuya categoría es amenity=pharmacy.
+    Useful when Overpass is saturated or the address does not geocode well.
+    Only keeps results whose category is amenity=pharmacy.
     """
-    consultas = [f"pharmacy in {direccion}", f"farmacia en {direccion}"]
-    if localidad and _norm(localidad) != _norm(direccion):
-        consultas += [f"pharmacy in {localidad}", f"farmacia en {localidad}"]
+    queries = [f"pharmacy in {address}", f"farmacia en {address}"]
+    if locality and _norm(locality) != _norm(address):
+        queries += [f"pharmacy in {locality}", f"farmacia en {locality}"]
 
-    inicio = time.monotonic()
-    farmacias, vistas = [], set()
-    for consulta in consultas:
-        quedan = _restante(inicio, tiempo_max)
-        if quedan < 2.0:
+    start = time.monotonic()
+    pharmacies, seen = [], set()
+    for query in queries:
+        remaining = _remaining(start, max_time)
+        if remaining < 2.0:
             break
         try:
-            datos = _get_json(
+            data = _get_json(
                 NOMINATIM_URL,
-                params={"q": consulta, "format": "jsonv2", "limit": 10, "addressdetails": 0},
-                timeout=min(HTTP_TIMEOUT, quedan),
+                params={"q": query, "format": "jsonv2", "limit": 10, "addressdetails": 0},
+                timeout=min(HTTP_TIMEOUT, remaining),
             )
         except Exception:
             continue
-        for r in datos or []:
+        for r in data or []:
             if r.get("category") != "amenity" or r.get("type") != "pharmacy":
                 continue
-            if r.get("osm_id") in vistas:
+            if r.get("osm_id") in seen:
                 continue
-            vistas.add(r.get("osm_id"))
-            partes = [p.strip() for p in (r.get("display_name") or "").split(",")]
-            farmacias.append({
-                "nombre": r.get("name") or (partes[0] if partes else "Farmacia"),
-                "direccion": ", ".join(partes[1:3]),
-                "ciudad": ", ".join(partes[3:5]),
-                "telefono": "",
-                "horario": "",
+            seen.add(r.get("osm_id"))
+            parts = [p.strip() for p in (r.get("display_name") or "").split(",")]
+            pharmacies.append({
+                "name": r.get("name") or (parts[0] if parts else "Farmacia"),
+                "address": ", ".join(parts[1:3]),
+                "city": ", ".join(parts[3:5]),
+                "phone": "",
+                "opening_hours": "",
                 "lat": float(r["lat"]),
                 "lon": float(r["lon"]),
             })
-        if farmacias:
+        if pharmacies:
             break
-    return farmacias
+    return pharmacies
 
 
-def _distancia_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Distancia en línea recta (haversine) entre dos coordenadas."""
-    radio = 6371.0
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Straight-line distance (haversine) between two coordinates."""
+    earth_radius = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
-    return radio * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return earth_radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 @tool
-def buscar_farmacia_real(ubicacion: str, language: str = "auto") -> str:
+def find_real_pharmacy(location: str, language: str = "auto") -> str:
     """Find real pharmacies near a place using OpenStreetMap (API internet #2).
     Busca farmacias REALES cercanas a una ciudad o dirección usando las APIs
     públicas de OpenStreetMap (Nominatim para geocodificar + Overpass para los
@@ -1088,164 +1097,165 @@ def buscar_farmacia_real(ubicacion: str, language: str = "auto") -> str:
     Returns up to 5 nearby pharmacies with distance, address, hours and phone.
 
     Args:
-        ubicacion: Ciudad, barrio o dirección (ej: "Madrid", "Gran Vía 20, Madrid").
-            City, district or street address (e.g. "Barcelona", "20 Oxford St, London").
+        location: City, district or street address (e.g. "Barcelona",
+            "20 Oxford St, London"). Ciudad, barrio o dirección
+            (ej: "Madrid", "Gran Vía 20, Madrid").
         language: Force response language: "es", "en" or "auto" (detect). Default "auto".
 
     Returns:
-        Lista de farmacias reales con distancia y datos, o aviso de indisponibilidad.
         List of real pharmacies with distance and details, or an unavailability notice.
+        Lista de farmacias reales con distancia y datos, o aviso de indisponibilidad.
     """
-    lang = language if language in ("es", "en") else _detect_lang(ubicacion)
-    inicio = time.monotonic()
+    lang = language if language in ("es", "en") else _detect_lang(location)
+    start = time.monotonic()
 
-    # 1) Geocodificar la ubicación (Nominatim) para poder medir distancias.
-    #    Se acota a 6 s para no comerse el presupuesto que necesitan Overpass
-    #    y el fallback de Nominatim dentro de PRESUPUESTO_GEO.
+    # 1) Geocode the location (Nominatim) so distances can be measured.
+    #    Capped to 6 s so as not to eat the budget Overpass and the Nominatim
+    #    fallback need within GEO_BUDGET.
     try:
-        geocodigo = _geocodificar(
-            ubicacion,
-            timeout=min(6.0, HTTP_TIMEOUT, _restante(inicio, PRESUPUESTO_GEO)))
+        geocode = _geocode(
+            location,
+            timeout=min(6.0, HTTP_TIMEOUT, _remaining(start, GEO_BUDGET)))
     except Exception:
-        geocodigo = None
-    referencia = geocodigo[:2] if geocodigo else None
-    localidad = geocodigo[3] if geocodigo else None
+        geocode = None
+    reference = geocode[:2] if geocode else None
+    locality = geocode[3] if geocode else None
 
-    # 2) Farmacias: Overpass alrededor del punto de referencia (datos ricos)
-    farmacias: list[dict] = []
-    error_overpass: Exception | None = None
-    if referencia and _restante(inicio, PRESUPUESTO_GEO) > 3.0:
+    # 2) Pharmacies: Overpass around the reference point (rich data)
+    pharmacies: list[dict] = []
+    overpass_error: Exception | None = None
+    if reference and _remaining(start, GEO_BUDGET) > 3.0:
         try:
-            farmacias = _farmacias_overpass(
-                *referencia,
-                tiempo_max=min(OVERPASS_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+            pharmacies = _overpass_pharmacies(
+                *reference,
+                max_time=min(OVERPASS_MAX, _remaining(start, GEO_BUDGET)))
         except Exception as e:
-            error_overpass = e
+            overpass_error = e
 
-    # 3) Fallback: búsqueda directa de farmacias en Nominatim (tiempo reservado
-    #    con NOMINATIM_MAX para que Overpass no se lleve todo el presupuesto)
-    if not farmacias and _restante(inicio, PRESUPUESTO_GEO) > 3.0:
+    # 3) Fallback: direct pharmacy search in Nominatim (time reserved with
+    #    NOMINATIM_MAX so Overpass does not take the whole budget)
+    if not pharmacies and _remaining(start, GEO_BUDGET) > 3.0:
         try:
-            farmacias = _farmacias_nominatim(
-                ubicacion, localidad,
-                tiempo_max=min(NOMINATIM_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+            pharmacies = _nominatim_pharmacies(
+                location, locality,
+                max_time=min(NOMINATIM_MAX, _remaining(start, GEO_BUDGET)))
         except Exception:
-            farmacias = []
+            pharmacies = []
 
-    # 3b) Overpass falla de forma transitoria (504/429 por saturación): si el
-    # fallback de Nominatim solo ha devuelto farmacias lejanas, reintentamos
-    # Overpass una última vez antes de dar por bueno el resultado.
-    if referencia and farmacias and _restante(inicio, PRESUPUESTO_GEO) > 4.0:
-        distancias_previas = [
-            _distancia_km(referencia[0], referencia[1], f["lat"], f["lon"])
-            for f in farmacias if f.get("lat") is not None and f.get("lon") is not None
+    # 3b) Overpass fails transiently (504/429 due to saturation): if the
+    # Nominatim fallback only returned far-away pharmacies, retry Overpass
+    # one last time before accepting the result.
+    if reference and pharmacies and _remaining(start, GEO_BUDGET) > 4.0:
+        previous_distances = [
+            _distance_km(reference[0], reference[1], f["lat"], f["lon"])
+            for f in pharmacies if f.get("lat") is not None and f.get("lon") is not None
         ]
-        if distancias_previas and min(distancias_previas) > 5.0:
+        if previous_distances and min(previous_distances) > 5.0:
             time.sleep(1.0)
             try:
-                reintento = _farmacias_overpass(
-                    *referencia,
-                    tiempo_max=min(OVERPASS_MAX, _restante(inicio, PRESUPUESTO_GEO)))
+                retry = _overpass_pharmacies(
+                    *reference,
+                    max_time=min(OVERPASS_MAX, _remaining(start, GEO_BUDGET)))
             except Exception:
-                reintento = []
-            if reintento:
-                farmacias = reintento
+                retry = []
+            if retry:
+                pharmacies = retry
 
-    if not farmacias:
-        motivo = type(error_overpass).__name__ if error_overpass else "sin resultados"
+    if not pharmacies:
+        reason = type(overpass_error).__name__ if overpass_error else "no results"
         if lang == "en":
             return (
-                f"No pharmacies found on OpenStreetMap for '{ubicacion}' ({motivo}). "
+                f"No pharmacies found on OpenStreetMap for '{location}' ({reason}). "
                 f"Try a bigger town or a more precise address, retry in a moment, or use "
-                f"the local simulated search (tool 'buscar_farmacia'). {_disclaimer(lang)}"
+                f"the local simulated search (tool 'find_pharmacy'). {_disclaimer(lang)}"
             )
         return (
-            f"No he encontrado farmacias en OpenStreetMap para '{ubicacion}' ({motivo}). "
+            f"No he encontrado farmacias en OpenStreetMap para '{location}' ({reason}). "
             f"Prueba con una ciudad más grande o una dirección más concreta, repite la "
             f"consulta en unos segundos o usa la búsqueda local simulada (tool "
-            f"'buscar_farmacia'). {_disclaimer(lang)}"
+            f"'find_pharmacy'). {_disclaimer(lang)}"
         )
 
-    if referencia:
-        lat, lon = referencia
-        for f in farmacias:
+    if reference:
+        lat, lon = reference
+        for f in pharmacies:
             if f.get("lat") is not None and f.get("lon") is not None:
-                f["distancia_km"] = round(_distancia_km(lat, lon, f["lat"], f["lon"]), 2)
+                f["distance_km"] = round(_distance_km(lat, lon, f["lat"], f["lon"]), 2)
             else:
-                f["distancia_km"] = None
-        farmacias.sort(key=lambda f: (f["distancia_km"] is None, f["distancia_km"] or 0))
+                f["distance_km"] = None
+        pharmacies.sort(key=lambda f: (f["distance_km"] is None, f["distance_km"] or 0))
     else:
-        for f in farmacias:
-            f["distancia_km"] = None
+        for f in pharmacies:
+            f["distance_km"] = None
 
-    # Con referencia geográfica, solo mostramos farmacias realmente cercanas
-    # (el fallback de Nominatim puede devolver puntos de otras zonas).
-    if referencia:
-        cercanas = [f for f in farmacias
-                    if f["distancia_km"] is not None and f["distancia_km"] <= 5.0][:5]
-        if not cercanas:
-            cercanas = farmacias[:5]
+    # With a geographic reference, only show genuinely nearby pharmacies
+    # (the Nominatim fallback can return points from other areas).
+    if reference:
+        nearby = [f for f in pharmacies
+                  if f["distance_km"] is not None and f["distance_km"] <= 5.0][:5]
+        if not nearby:
+            nearby = pharmacies[:5]
     else:
-        cercanas = farmacias[:5]
+        nearby = pharmacies[:5]
 
-    # Aviso si lo más cercano queda lejos (p. ej. geocodificación imprecisa)
-    mas_cerca = next((f["distancia_km"] for f in cercanas
-                      if f.get("distancia_km") is not None), None)
-    nota_ubicacion = ""
-    if mas_cerca is not None and mas_cerca > 5.0:
+    # Notice if the closest match is far away (e.g. imprecise geocoding)
+    closest = next((f["distance_km"] for f in nearby
+                    if f.get("distance_km") is not None), None)
+    location_note = ""
+    if closest is not None and closest > 5.0:
         if lang == "en":
-            nota_ubicacion = (
-                f"· The closest match is {mas_cerca} km away: check the spelling of the "
+            location_note = (
+                f"· The closest match is {closest} km away: check the spelling of the "
                 f"place or add the street/city. "
             )
         else:
-            nota_ubicacion = (
-                f"· Lo más cercano está a {mas_cerca} km: revisa cómo está escrita la "
+            location_note = (
+                f"· Lo más cercano está a {closest} km: revisa cómo está escrita la "
                 f"ubicación o añade calle y ciudad. "
             )
 
-    lineas = []
+    lines = []
     if lang == "en":
-        lineas.append(f"Real pharmacies near '{ubicacion}' (OpenStreetMap, API internet):")
-        for f in cercanas:
-            dist = f"{f['distancia_km']} km" if f["distancia_km"] is not None else "distance n/a"
+        lines.append(f"Real pharmacies near '{location}' (OpenStreetMap, API internet):")
+        for f in nearby:
+            dist = f"{f['distance_km']} km" if f["distance_km"] is not None else "distance n/a"
             extras = " | ".join(x for x in [
-                f["direccion"], f["ciudad"], f["telefono"] and f"Tel: {f['telefono']}",
-                f["horario"] and f"Hours: {f['horario']}",
+                f["address"], f["city"], f["phone"] and f"Tel: {f['phone']}",
+                f["opening_hours"] and f"Hours: {f['opening_hours']}",
             ] if x)
-            lineas.append(f"· {f['nombre']} ({dist})" + (f"\n  {extras}" if extras else ""))
-        lineas.append(
-            nota_ubicacion +
+            lines.append(f"· {f['name']} ({dist})" + (f"\n  {extras}" if extras else ""))
+        lines.append(
+            location_note +
             "Data © OpenStreetMap contributors (ODbL). Opening hours may be "
             "outdated: call before going. " + _disclaimer(lang)
         )
     else:
-        lineas.append(f"Farmacias reales cerca de '{ubicacion}' (OpenStreetMap, API internet):")
-        for f in cercanas:
-            dist = f"{f['distancia_km']} km" if f["distancia_km"] is not None else "distancia n/d"
+        lines.append(f"Farmacias reales cerca de '{location}' (OpenStreetMap, API internet):")
+        for f in nearby:
+            dist = f"{f['distance_km']} km" if f["distance_km"] is not None else "distancia n/d"
             extras = " | ".join(x for x in [
-                f["direccion"], f["ciudad"], f["telefono"] and f"Tel: {f['telefono']}",
-                f["horario"] and f"Horario: {f['horario']}",
+                f["address"], f["city"], f["phone"] and f"Tel: {f['phone']}",
+                f["opening_hours"] and f"Horario: {f['opening_hours']}",
             ] if x)
-            lineas.append(f"· {f['nombre']} ({dist})" + (f"\n  {extras}" if extras else ""))
-        lineas.append(
-            nota_ubicacion +
+            lines.append(f"· {f['name']} ({dist})" + (f"\n  {extras}" if extras else ""))
+        lines.append(
+            location_note +
             "Datos © de los colaboradores de OpenStreetMap (ODbL). El horario puede "
             "desactualizarse: llama antes de ir. " + _disclaimer(lang)
         )
-    return "\n".join(lineas)
+    return "\n".join(lines)
 
 
-# Lista de tools que se entregan al agente
+# List of tools handed to the agent
 TOOLS = [
-    analizar_sintomas,
-    buscar_medicamento,
-    calcular_dosis,
-    verificar_interaccion,
-    consultar_contraindicacion,
-    evaluar_urgencia,
-    buscar_farmacia,
-    calcular,
-    consultar_farmacovigilancia,
-    buscar_farmacia_real,
+    analyze_symptoms,
+    search_medication,
+    calculate_dose,
+    check_interaction,
+    check_contraindication,
+    assess_urgency,
+    find_pharmacy,
+    calculate,
+    query_pharmacovigilance,
+    find_real_pharmacy,
 ]

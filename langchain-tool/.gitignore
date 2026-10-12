@@ -9,7 +9,7 @@ venv/
 env/
 ENV/
 
-# Logs / procesos locales
+# Logs / local processes
 *.log
 nohup.out
 
